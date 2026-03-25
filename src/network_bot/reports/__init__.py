@@ -1,3 +1,3 @@
-from .generator import generate_report
+from .generator import generate_report, ReportGenerator
 
-__all__ = ["generate_report"]
+__all__ = ["generate_report", "ReportGenerator"]
