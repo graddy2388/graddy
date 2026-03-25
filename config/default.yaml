@@ -1,0 +1,31 @@
+scheduler:
+  interval_minutes: 60
+  enabled: true
+
+scanning:
+  port_timeout: 3
+  common_ports: [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 5432, 6379, 8080, 8443, 27017]
+  max_workers: 50
+
+ssl:
+  warn_expiry_days: 30
+  check_weak_ciphers: true
+
+http:
+  timeout: 10
+  follow_redirects: true
+  user_agent: "NetworkBot/1.0 Security Scanner"
+
+dns:
+  check_spf: true
+  check_dmarc: true
+  check_dnssec: false
+
+reporting:
+  output_dir: "reports"
+  formats: ["json", "html"]
+  keep_last: 10
+
+logging:
+  level: "INFO"
+  file: "logs/network_bot.log"

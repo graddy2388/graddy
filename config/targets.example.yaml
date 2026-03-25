@@ -1,0 +1,10 @@
+targets:
+  - name: "Example Web Server"
+    host: "example.com"
+    checks: ["port_scan", "ssl", "http", "dns", "vuln"]
+    ports: [80, 443, 8080]
+
+  - name: "Internal Server"
+    host: "192.168.1.100"
+    checks: ["port_scan", "vuln"]
+    ports: [22, 80, 443, 3306, 5432]
