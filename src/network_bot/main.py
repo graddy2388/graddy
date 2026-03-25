@@ -1,8 +1,5 @@
 """
-Network Testing Bot — autonomous network security scanner.
-
-Usage:
-  network-bot [--config CONFIG] [--targets TARGETS] [--once] [--output DIR] [--verbose]
+network_bot.main – CLI entry point for the autonomous network testing bot.
 """
 from __future__ import annotations
 
@@ -10,27 +7,35 @@ import argparse
 import logging
 import signal
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List
+from typing import Any, Dict, List, Optional
 
 from rich.console import Console
-from rich.logging import RichHandler
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 from rich.table import Table
+from rich import box
 
 from . import __version__
 from .checks.base import CheckResult, Severity
-from .checks.port_scan import PortScanCheck
-from .checks.ssl_check import SSLCheck
-from .checks.http_check import HTTPCheck
-from .checks.dns_check import DNSCheck
-from .checks.vuln_check import VulnCheck
+from .checks import PortScanCheck, SSLCheck, HTTPCheck, DNSCheck, VulnCheck
 from .config import load_config
-from .reports.generator import generate_report
+from .reports.generator import ReportGenerator
 from .scheduler import BotScheduler
 
 console = Console()
+
+BANNER = f"""[bold cyan]
+ ███╗   ██╗███████╗████████╗██╗    ██╗ ██████╗ ██████╗ ██╗  ██╗    ██████╗  ██████╗ ████████╗
+ ████╗  ██║██╔════╝╚══██╔══╝██║    ██║██╔═══██╗██╔══██╗██║ ██╔╝    ██╔══██╗██╔═══██╗╚══██╔══╝
+ ██╔██╗ ██║█████╗     ██║   ██║ █╗ ██║██║   ██║██████╔╝█████╔╝     ██████╔╝██║   ██║   ██║   
+ ██║╚██╗██║██╔══╝     ██║   ██║███╗██║██║   ██║██╔══██╗██╔═██╗     ██╔══██╗██║   ██║   ██║   
+ ██║ ╚████║███████╗   ██║   ╚███╔███╔╝╚██████╔╝██║  ██║██║  ██╗    ██████╔╝╚██████╔╝   ██║   
+ ╚═╝  ╚═══╝╚══════╝   ╚═╝    ╚══╝╚══╝  ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝   ╚═════╝  ╚═════╝    ╚═╝   
+[/bold cyan]
+[dim]  Autonomous Network Security Testing Bot  v{__version__}[/dim]
+"""
 
 CHECK_REGISTRY = {
     "port_scan": PortScanCheck,
@@ -40,223 +45,281 @@ CHECK_REGISTRY = {
     "vuln": VulnCheck,
 }
 
-_SEVERITY_STYLES = {
+SEVERITY_STYLES = {
     "critical": "bold red",
-    "high": "red",
-    "medium": "yellow",
-    "low": "blue",
-    "info": "dim",
+    "high": "bold orange1",
+    "medium": "bold yellow",
+    "low": "green",
+    "info": "blue",
 }
 
 
-def _setup_logging(verbose: bool, log_file: str | None = None) -> None:
-    level = logging.DEBUG if verbose else logging.INFO
-    handlers: list = [RichHandler(console=console, rich_tracebacks=True, show_path=False)]
-
+def _configure_logging(level: str, log_file: Optional[str]) -> None:
+    """Set up root logger with console and optional file handler."""
+    numeric_level = getattr(logging, level.upper(), logging.INFO)
+    handlers: List[logging.Handler] = [logging.StreamHandler(sys.stderr)]
     if log_file:
         log_path = Path(log_file)
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(log_path))
+        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler.setFormatter(
+            logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+        )
+        handlers.append(file_handler)
 
     logging.basicConfig(
-        level=level,
-        format="%(message)s",
-        datefmt="[%X]",
+        level=numeric_level,
+        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
         handlers=handlers,
+        force=True,
     )
-    # Suppress noisy third-party loggers
-    logging.getLogger("urllib3").setLevel(logging.WARNING)
-    logging.getLogger("requests").setLevel(logging.WARNING)
-
-
-def _print_banner() -> None:
-    console.print(Panel.fit(
-        f"[bold cyan]Network Testing Bot[/bold cyan] v{__version__}\n"
-        "[dim]Autonomous network security scanner[/dim]",
-        border_style="cyan",
-    ))
-
-
-def _print_summary_table(results_by_target: Dict[str, List[CheckResult]]) -> None:
-    table = Table(title="Scan Summary", show_header=True, header_style="bold")
-    table.add_column("Target", style="cyan")
-    table.add_column("Check")
-    table.add_column("Status")
-    table.add_column("Critical", justify="center", style="bold red")
-    table.add_column("High", justify="center", style="red")
-    table.add_column("Medium", justify="center", style="yellow")
-    table.add_column("Low", justify="center", style="blue")
-    table.add_column("Info", justify="center", style="dim")
-
-    for host, results in results_by_target.items():
-        for result in results:
-            if result.error:
-                table.add_row(host, result.check_name, "[red]ERROR[/red]", "-", "-", "-", "-", "-")
-                continue
-            counts = {s.value: 0 for s in Severity}
-            for f in result.findings:
-                counts[f.severity.value] = counts.get(f.severity.value, 0) + 1
-            status = "[green]PASS[/green]" if result.passed else "[red]FAIL[/red]"
-            table.add_row(
-                host,
-                result.check_name,
-                status,
-                str(counts.get("critical", 0)) if counts.get("critical") else "[dim]0[/dim]",
-                str(counts.get("high", 0)) if counts.get("high") else "[dim]0[/dim]",
-                str(counts.get("medium", 0)) if counts.get("medium") else "[dim]0[/dim]",
-                str(counts.get("low", 0)) if counts.get("low") else "[dim]0[/dim]",
-                str(counts.get("info", 0)),
-            )
-
-    console.print(table)
 
 
 class NetworkBot:
-    """Main bot class that orchestrates checks and reporting."""
+    """Core bot class that orchestrates checks and report generation."""
 
-    def __init__(self, config: dict, targets: List[dict], output_dir: str = "reports"):
-        self.config = config
-        self.targets = targets
-        self.output_dir = output_dir
+    def __init__(self, config: Dict[str, Any], targets: List[Dict[str, Any]]) -> None:
+        self._config = config
+        self._targets = targets
+        self._reporter = ReportGenerator(config)
 
-    def run_checks(self) -> Dict[str, List[CheckResult]]:
-        """Run all configured checks against all targets."""
-        results_by_target: Dict[str, List[CheckResult]] = {}
+    def run_checks(self) -> List[CheckResult]:
+        """Run all configured checks against all targets and generate a report."""
+        all_results: List[CheckResult] = []
+        timestamp = datetime.now(timezone.utc).isoformat()
+
+        console.print(
+            Panel(
+                f"[bold]Starting scan of [cyan]{len(self._targets)}[/cyan] target(s)[/bold]",
+                border_style="blue",
+            )
+        )
 
         with Progress(
             SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
             console=console,
             transient=True,
         ) as progress:
-            for target in self.targets:
+            total_checks = sum(len(t.get("checks", list(CHECK_REGISTRY.keys()))) for t in self._targets)
+            overall_task = progress.add_task("[cyan]Overall progress", total=total_checks)
+
+            for target in self._targets:
                 host = target["host"]
                 name = target.get("name", host)
-                requested_checks = target.get("checks", list(CHECK_REGISTRY.keys()))
-                results: List[CheckResult] = []
-                port_scan_metadata: dict = {}
+                checks_to_run = target.get("checks", list(CHECK_REGISTRY.keys()))
 
-                task = progress.add_task(f"Scanning [cyan]{name}[/cyan] ({host})", total=None)
+                target_task = progress.add_task(
+                    f"[yellow]{name} ({host})", total=len(checks_to_run)
+                )
 
-                for check_name in requested_checks:
-                    check_cls = CHECK_REGISTRY.get(check_name)
-                    if check_cls is None:
+                for check_name in checks_to_run:
+                    check_class = CHECK_REGISTRY.get(check_name)
+                    if check_class is None:
                         logging.getLogger(__name__).warning(
-                            "Unknown check '%s' — skipping", check_name
+                            "Unknown check '%s' for target '%s'", check_name, name
                         )
+                        progress.advance(target_task)
+                        progress.advance(overall_task)
                         continue
 
-                    progress.update(task, description=f"[cyan]{name}[/cyan] → {check_name}")
+                    progress.update(
+                        target_task,
+                        description=f"[yellow]{name}[/yellow] → [white]{check_name}[/white]",
+                    )
 
-                    enriched_target = dict(target)
-                    if check_name == "vuln" and port_scan_metadata:
-                        enriched_target["_port_scan_banners"] = port_scan_metadata.get("banners", {})
-
+                    checker = check_class(self._config)
                     try:
-                        checker = check_cls(self.config)
-                        result = checker.run(enriched_target)
-                        results.append(result)
-
-                        if check_name == "port_scan":
-                            port_scan_metadata = result.metadata
-
+                        result = checker.run(target)
                     except Exception as exc:
-                        logging.getLogger(__name__).error(
-                            "Check '%s' error for %s: %s", check_name, host, exc, exc_info=True
+                        logging.getLogger(__name__).exception(
+                            "Check '%s' crashed for target '%s': %s", check_name, name, exc
                         )
-                        results.append(CheckResult(
+                        from .checks.base import CheckResult as CR
+                        result = CR(
                             check_name=check_name,
                             target=host,
                             passed=False,
-                            error=str(exc),
-                        ))
+                            error=f"Unexpected error: {exc}",
+                        )
 
-                results_by_target[host] = results
-                progress.remove_task(task)
+                    all_results.append(result)
+                    progress.advance(target_task)
+                    progress.advance(overall_task)
 
-        _print_summary_table(results_by_target)
+                progress.remove_task(target_task)
 
-        reporting_cfg = self.config.get("reporting", {})
-        formats = reporting_cfg.get("formats", ["json", "html"])
-        written = generate_report(
-            results_by_target=results_by_target,
-            targets=self.targets,
-            output_dir=self.output_dir,
-            formats=formats,
-        )
+        # Generate reports
+        report_paths = self._reporter.generate(all_results, self._targets, timestamp)
 
-        for fmt, path in written.items():
-            console.print(f"[green]Report saved:[/green] {path} ({fmt.upper()})")
+        # Print summary
+        self._print_summary(all_results, report_paths)
 
-        return results_by_target
+        return all_results
+
+    def _print_summary(
+        self, results: List[CheckResult], report_paths: Dict[str, Path]
+    ) -> None:
+        """Print a rich summary table to the console."""
+        # Aggregate counts
+        sev_counts = {s.value: 0 for s in Severity}
+        pass_count = sum(1 for r in results if r.passed)
+        fail_count = len(results) - pass_count
+
+        for result in results:
+            for finding in result.findings:
+                sev_counts[finding.severity.value] += 1
+
+        table = Table(title="Scan Summary", box=box.ROUNDED, border_style="blue")
+        table.add_column("Severity", style="bold")
+        table.add_column("Count", justify="right")
+
+        for sev_name, style in SEVERITY_STYLES.items():
+            count = sev_counts.get(sev_name, 0)
+            table.add_row(sev_name.upper(), f"[{style}]{count}[/{style}]")
+
+        table.add_section()
+        table.add_row("Checks Passed", f"[green]{pass_count}[/green]")
+        table.add_row("Checks Failed", f"[red]{fail_count}[/red]")
+        table.add_row("Total Findings", str(sum(sev_counts.values())))
+
+        console.print(table)
+
+        if report_paths:
+            console.print("\n[bold]Reports generated:[/bold]")
+            for fmt, path in report_paths.items():
+                console.print(f"  [{fmt.upper()}] [link={path.resolve()}]{path.resolve()}[/link]")
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="network-bot",
-        description="Autonomous network security testing bot",
+        description="Autonomous network security testing bot.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--config", metavar="FILE", help="Path to config YAML override file")
-    parser.add_argument("--targets", metavar="FILE", help="Path to targets YAML file")
+    parser.add_argument(
+        "--config",
+        metavar="CONFIG",
+        default=None,
+        help="Path to a YAML config file that overrides defaults.",
+    )
+    parser.add_argument(
+        "--targets",
+        metavar="TARGETS",
+        default=None,
+        help="Path to a YAML targets file.",
+    )
     parser.add_argument(
         "--once",
         action="store_true",
-        help="Run checks once and exit (default: run on schedule)",
+        help="Run checks once and exit (do not start the scheduler).",
     )
     parser.add_argument(
         "--output",
-        metavar="DIR",
+        metavar="OUTPUT",
         default=None,
-        help="Output directory for reports (default: from config, 'reports/')",
+        help="Directory to write reports to (overrides config).",
     )
-    parser.add_argument("--verbose", "-v", action="store_true", help="Enable debug logging")
+    parser.add_argument(
+        "--format",
+        dest="format",
+        choices=["json", "html", "both"],
+        default=None,
+        help="Report format to generate (overrides config).",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable debug-level logging.",
+    )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+    )
     return parser
 
 
-def main() -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     parser = _build_arg_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
 
     # Load config
-    cfg = load_config(config_path=args.config, targets_path=args.targets)
-    config = cfg["config"]
-    targets = cfg["targets"]
+    loaded = load_config(config_path=args.config, targets_path=args.targets)
+    config: Dict[str, Any] = loaded["config"]
+    targets: List[Dict[str, Any]] = loaded["targets"]
 
-    # Setup logging
+    # Apply CLI overrides
+    log_level = "DEBUG" if args.verbose else config.get("logging", {}).get("level", "INFO")
     log_file = config.get("logging", {}).get("file")
-    _setup_logging(verbose=args.verbose, log_file=log_file)
+    _configure_logging(log_level, log_file)
 
-    _print_banner()
+    if args.output:
+        config.setdefault("reporting", {})["output_dir"] = args.output
+
+    if args.format:
+        formats = ["json", "html"] if args.format == "both" else [args.format]
+        config.setdefault("reporting", {})["formats"] = formats
+
+    # Print banner
+    console.print(BANNER)
 
     if not targets:
         console.print(
-            "[yellow]No targets configured.[/yellow] "
-            "Create [cyan]config/targets.yaml[/cyan] from the example file."
+            "[bold red]No targets configured.[/bold red] "
+            "Create [cyan]config/targets.yaml[/cyan] from the example or use [cyan]--targets[/cyan]."
         )
         return 1
 
-    console.print(f"Loaded [cyan]{len(targets)}[/cyan] target(s)")
+    console.print(
+        f"[dim]Loaded [bold]{len(targets)}[/bold] target(s) | "
+        f"Log level: [bold]{log_level}[/bold][/dim]\n"
+    )
 
-    output_dir = args.output or config.get("reporting", {}).get("output_dir", "reports")
-    bot = NetworkBot(config=config, targets=targets, output_dir=output_dir)
+    bot = NetworkBot(config=config, targets=targets)
 
     if args.once:
+        # Run once and exit
         bot.run_checks()
         return 0
 
     # Scheduled mode
-    scheduler = BotScheduler(bot=bot, interval_minutes=config.get("scheduler", {}).get("interval_minutes", 60))
+    interval = config.get("scheduler", {}).get("interval_minutes", 60)
+    scheduler_enabled = config.get("scheduler", {}).get("enabled", True)
 
-    # Graceful shutdown on SIGINT/SIGTERM
-    def _shutdown(signum, frame):
-        console.print("\n[yellow]Shutting down...[/yellow]")
+    if not scheduler_enabled:
+        console.print("[yellow]Scheduler disabled in config; running once.[/yellow]")
+        bot.run_checks()
+        return 0
+
+    console.print(
+        f"[bold green]Starting scheduler[/bold green] "
+        f"(interval: [cyan]{interval} minute(s)[/cyan]). "
+        "Press [bold]Ctrl+C[/bold] to stop.\n"
+    )
+
+    scheduler = BotScheduler(bot=bot, interval_minutes=interval)
+
+    def _handle_shutdown(signum: int, frame: Any) -> None:
+        console.print("\n[yellow]Shutdown signal received. Stopping...[/yellow]")
         scheduler.stop()
         sys.exit(0)
 
-    signal.signal(signal.SIGINT, _shutdown)
-    signal.signal(signal.SIGTERM, _shutdown)
+    signal.signal(signal.SIGINT, _handle_shutdown)
+    signal.signal(signal.SIGTERM, _handle_shutdown)
 
     scheduler.start()
+
+    # Block main thread
+    try:
+        while True:
+            import time
+            time.sleep(1)
+    except (KeyboardInterrupt, SystemExit):
+        scheduler.stop()
+
     return 0
 
 
