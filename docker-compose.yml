@@ -1,12 +1,12 @@
 services:
   network-bot:
-    build: .
+    image: ghcr.io/graddy2388/graddy:latest
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data       # SQLite database and scan history
-      - ./config:/app/config   # Your targets.yaml and config overrides
-      - ./logs:/app/logs       # Log files
+      - netbot-data:/app/data      # SQLite database and scan history
+      - netbot-logs:/app/logs      # Log files
+      - ./config:/app/config       # Your targets.yaml and config overrides
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
@@ -14,3 +14,7 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  netbot-data:
+  netbot-logs:
