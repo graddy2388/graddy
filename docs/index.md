@@ -1,8 +1,8 @@
 # Network Bot — Home
 
-Network Bot is an autonomous network security scanner with a built-in web GUI. Point it at your hosts, subnets, or mail servers and it will continuously check for misconfigurations, weak TLS, dangerous open ports, exposed sensitive files, missing email authentication records, and known software vulnerabilities — then surface everything in a clean dashboard with colour-coded severity findings.
+Network Bot is an autonomous network security scanner with a polished web GUI. Point it at your hosts, subnets, or mail servers and it will continuously probe for misconfigurations, weak TLS, exposed secrets, known CVEs, DNS spoofing risks, and more — then surface everything as colour-coded findings you can filter, export, and act on. It runs happily in Docker with zero external dependencies and fires off alerts to Microsoft Teams or email whenever something critical turns up.
 
-Everything runs from a single Docker image (or a plain `pip install`). There are no external services to set up: the database is SQLite, reports are written to disk, and alerts go out over Microsoft Teams webhooks or SMTP email. The scheduler wakes up automatically every 60 minutes (configurable) so your findings stay fresh without any manual intervention.
+Under the hood the bot runs a scheduler (default: every 60 minutes) that loops through your configured targets and dispatches up to eight security check modules per target. Results land in a local SQLite database and are instantly viewable in the browser. You can also skip the GUI entirely and run headless CLI scans that write JSON/HTML reports to disk.
 
 ---
 
@@ -15,25 +15,34 @@ Everything runs from a single Docker image (or a plain `pip install`). There are
 - 🦠 **Vulnerability matching** — banner-based CVE detection for OpenSSH, Apache, nginx, OpenSSL, vsftpd, Exim, and more
 - 📬 **SMTP checks** — STARTTLS enforcement, open relay, cleartext AUTH, TLS quality
 - 🗂️ **Exposed path scanning** — `.env`, `.git`, phpinfo, admin panels, backup archives, database configs
-- 🔑 **Cipher suite probing** — NULL, EXPORT, RC4, DES, 3DES, MD5-MAC detection
+- 🔑 **Cipher suite probing** — NULL, EXPORT, RC4, DES, 3DES, MD5-MAC, anonymous DH detection
 - 📊 **Live scan progress** — WebSocket-powered real-time findings feed in the browser
 - 🏷️ **Groups & Tags** — organise targets and scan subsets in one click
 - 🔔 **Alerting** — Microsoft Teams and email notifications for HIGH/CRITICAL findings
 - 🐳 **Docker-first** — single image, named volumes, health check included
+- 🌐 **CIDR subnet support** — scan entire subnets (e.g. `10.0.1.0/28`) from one target entry
 
 ---
 
 ## Quick Start
 
-Three commands and you're running:
+```yaml
+services:
+  network-bot:
+    image: ghcr.io/graddy2388/graddy:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - netbot-data:/app/data
+      - netbot-logs:/app/logs
+    restart: unless-stopped
 
-```bash
-curl -o docker-compose.yml https://raw.githubusercontent.com/graddy2388/graddy/main/docker-compose.yml
-docker compose up -d
-# Open http://localhost:8080
+volumes:
+  netbot-data:
+  netbot-logs:
 ```
 
-That's it. The web GUI will be available immediately. Add your first target through the UI or drop a `targets.yaml` into the `./config/` folder — it will be imported automatically on first run.
+Deploy in Portainer → open **http://\<your-host\>:8080**.
 
 ---
 
