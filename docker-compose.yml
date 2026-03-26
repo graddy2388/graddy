@@ -1,0 +1,16 @@
+services:
+  network-bot:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data       # SQLite database and scan history
+      - ./config:/app/config   # Your targets.yaml and config overrides
+      - ./logs:/app/logs       # Log files
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

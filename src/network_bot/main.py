@@ -204,185 +204,128 @@ class NetworkBot:
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="network-bot",
-        description="Autonomous network security testing bot.",
+        description="Autonomous network security testing bot. Starts the web GUI by default.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "--config",
-        metavar="CONFIG",
-        default=None,
-        help="Path to a YAML config file that overrides defaults.",
-    )
-    parser.add_argument(
-        "--targets",
-        metavar="TARGETS",
-        default=None,
-        help="Path to a YAML targets file.",
-    )
-    parser.add_argument(
-        "--once",
-        action="store_true",
-        help="Run checks once and exit (do not start the scheduler).",
-    )
-    parser.add_argument(
-        "--output",
-        metavar="OUTPUT",
-        default=None,
-        help="Directory to write reports to (overrides config).",
-    )
-    parser.add_argument(
-        "--format",
-        dest="format",
-        choices=["json", "html", "both"],
-        default=None,
-        help="Report format to generate (overrides config).",
-    )
-    parser.add_argument(
-        "--target",
-        metavar="HOST",
-        default=None,
-        help="Ad-hoc single host to scan (overrides targets file, runs all checks).",
-    )
-    parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable debug-level logging.",
-    )
-    parser.add_argument(
-        "--version",
-        action="version",
-        version=f"%(prog)s {__version__}",
-    )
+    parser.add_argument("--config", metavar="FILE", default=None, help="YAML config override.")
+    parser.add_argument("--verbose", action="store_true", help="Enable debug logging.")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
 
-    # Subcommands
     subparsers = parser.add_subparsers(dest="command")
 
-    serve_parser = subparsers.add_parser("serve", help="Start the web GUI")
-    serve_parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
-    serve_parser.add_argument("--port", type=int, default=8080, help="Bind port (default: 8080)")
-    serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
+    # `serve` — default, starts the web GUI
+    serve = subparsers.add_parser("serve", help="Start the web GUI (default)")
+    serve.add_argument("--host", default="0.0.0.0", help="Bind host.")
+    serve.add_argument("--port", type=int, default=8080, help="Bind port.")
+    serve.add_argument("--targets", metavar="FILE", default=None, help="YAML targets to import on first run.")
+    serve.add_argument("--reload", action="store_true", help="Auto-reload for development.")
+
+    # `scan` — headless CLI scan
+    scan = subparsers.add_parser("scan", help="Run scans from the CLI without the web GUI.")
+    scan.add_argument("--targets", metavar="FILE", default=None, help="YAML targets file.")
+    scan.add_argument("--target", metavar="HOST", default=None, help="Scan a single host (runs all checks).")
+    scan.add_argument("--once", action="store_true", help="Run once and exit (skip scheduler).")
+    scan.add_argument("--output", metavar="DIR", default=None, help="Report output directory.")
+    scan.add_argument("--format", choices=["json", "html", "both"], default=None, help="Report format.")
 
     return parser
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    parser = _build_arg_parser()
-    args = parser.parse_args(argv)
+def _start_serve(args: argparse.Namespace, config: Dict[str, Any], targets: List[Dict[str, Any]]) -> int:
+    import uvicorn
+    from .web.app import create_app
+    from .web.db.schema import init_db, get_db
+    from .web.db.crud import get_targets as _get_targets, import_from_yaml
 
-    # Load config
-    loaded = load_config(config_path=args.config, targets_path=args.targets)
-    config: Dict[str, Any] = loaded["config"]
-    targets: List[Dict[str, Any]] = loaded["targets"]
+    db_path = config.get("web", {}).get("db_path", "data/network_bot.db")
+    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    init_db(db_path)
 
-    # Apply CLI overrides
-    log_level = "DEBUG" if args.verbose else config.get("logging", {}).get("level", "INFO")
-    log_file = config.get("logging", {}).get("file")
-    _configure_logging(log_level, log_file)
+    with get_db(db_path) as db:
+        if not _get_targets(db) and targets:
+            imported = import_from_yaml(db, targets)
+            if imported:
+                console.print(f"[green]Imported {imported} target(s) from YAML.[/green]")
 
-    # Handle `serve` subcommand
-    if getattr(args, "command", None) == "serve":
-        import uvicorn
-        from .web.app import create_app
-        from .web.db.schema import init_db, get_db
+    host = getattr(args, "host", None) or config.get("web", {}).get("host", "0.0.0.0")
+    port = getattr(args, "port", None) or config.get("web", {}).get("port", 8080)
+    reload = getattr(args, "reload", False)
 
-        db_path = config.get("web", {}).get("db_path", "data/network_bot.db")
-        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-        init_db(db_path)
+    console.print(BANNER)
+    console.print(f"[bold green]Web GUI[/bold green] → [cyan]http://{host}:{port}[/cyan]\n")
+    uvicorn.run(create_app(config), host=host, port=port, reload=reload)
+    return 0
 
-        # Auto-import YAML targets into DB on first serve
-        from .web.db.crud import get_targets as _get_targets, import_from_yaml
-        with get_db(db_path) as db:
-            if not _get_targets(db):
-                imported = import_from_yaml(db, targets)
-                if imported:
-                    console.print(
-                        f"[green]Imported {imported} targets from YAML into database.[/green]"
-                    )
 
-        console.print(
-            f"[bold green]Starting web GUI[/bold green] at "
-            f"[cyan]http://{args.host}:{args.port}[/cyan]\n"
-        )
+def _start_scan(args: argparse.Namespace, config: Dict[str, Any], targets: List[Dict[str, Any]]) -> int:
+    if getattr(args, "target", None):
+        targets = [{"host": args.target, "name": args.target, "checks": list(CHECK_REGISTRY.keys())}]
 
-        web_app = create_app(config)
-        uvicorn.run(web_app, host=args.host, port=args.port, reload=args.reload)
-        return 0
-
-    # --target overrides targets with a single ad-hoc target running all checks
-    if args.target:
-        targets = [
-            {
-                "host": args.target,
-                "name": args.target,
-                "checks": list(CHECK_REGISTRY.keys()),
-            }
-        ]
-
-    if args.output:
+    if getattr(args, "output", None):
         config.setdefault("reporting", {})["output_dir"] = args.output
 
-    if args.format:
+    if getattr(args, "format", None):
         formats = ["json", "html"] if args.format == "both" else [args.format]
         config.setdefault("reporting", {})["formats"] = formats
 
-    # Print banner
     console.print(BANNER)
 
     if not targets:
         console.print(
-            "[bold red]No targets configured.[/bold red] "
-            "Create [cyan]config/targets.yaml[/cyan] from the example or use [cyan]--targets[/cyan]."
+            "[bold red]No targets.[/bold red] Use [cyan]--targets FILE[/cyan] or [cyan]--target HOST[/cyan]."
         )
         return 1
 
-    console.print(
-        f"[dim]Loaded [bold]{len(targets)}[/bold] target(s) | "
-        f"Log level: [bold]{log_level}[/bold][/dim]\n"
-    )
-
+    console.print(f"[dim]{len(targets)} target(s) loaded.[/dim]\n")
     bot = NetworkBot(config=config, targets=targets)
 
-    if args.once:
-        # Run once and exit
+    if getattr(args, "once", False):
         bot.run_checks()
         return 0
 
-    # Scheduled mode
     interval = config.get("scheduler", {}).get("interval_minutes", 60)
-    scheduler_enabled = config.get("scheduler", {}).get("enabled", True)
-
-    if not scheduler_enabled:
-        console.print("[yellow]Scheduler disabled in config; running once.[/yellow]")
+    if not config.get("scheduler", {}).get("enabled", True):
         bot.run_checks()
         return 0
 
-    console.print(
-        f"[bold green]Starting scheduler[/bold green] "
-        f"(interval: [cyan]{interval} minute(s)[/cyan]). "
-        "Press [bold]Ctrl+C[/bold] to stop.\n"
-    )
-
+    console.print(f"[bold green]Scheduler[/bold green] running every [cyan]{interval}m[/cyan]. Ctrl+C to stop.\n")
     scheduler = BotScheduler(bot=bot, interval_minutes=interval)
 
-    def _handle_shutdown(signum: int, frame: Any) -> None:
-        console.print("\n[yellow]Shutdown signal received. Stopping...[/yellow]")
+    def _shutdown(signum: int, frame: Any) -> None:
         scheduler.stop()
         sys.exit(0)
 
-    signal.signal(signal.SIGINT, _handle_shutdown)
-    signal.signal(signal.SIGTERM, _handle_shutdown)
-
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
     scheduler.start()
 
-    # Block main thread
     try:
         while True:
             import time
             time.sleep(1)
     except (KeyboardInterrupt, SystemExit):
         scheduler.stop()
-
     return 0
+
+
+def main(argv: Optional[List[str]] = None) -> int:
+    parser = _build_arg_parser()
+    args = parser.parse_args(argv)
+
+    targets_path = getattr(args, "targets", None)
+    loaded = load_config(config_path=args.config, targets_path=targets_path)
+    config: Dict[str, Any] = loaded["config"]
+    targets: List[Dict[str, Any]] = loaded["targets"]
+
+    log_level = "DEBUG" if args.verbose else config.get("logging", {}).get("level", "INFO")
+    _configure_logging(log_level, config.get("logging", {}).get("file"))
+
+    # Default command is `serve`
+    command = getattr(args, "command", None) or "serve"
+
+    if command == "scan":
+        return _start_scan(args, config, targets)
+    return _start_serve(args, config, targets)
 
 
 if __name__ == "__main__":
