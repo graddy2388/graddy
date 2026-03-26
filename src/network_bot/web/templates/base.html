@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-50">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Network Bot{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="h-full flex">
+
+  <!-- Sidebar -->
+  <aside class="w-64 flex-shrink-0 bg-slate-800 flex flex-col min-h-screen">
+    <!-- Logo -->
+    <div class="px-6 py-5 border-b border-slate-700">
+      <div class="flex items-center space-x-3">
+        <div class="w-8 h-8 bg-indigo-500 rounded-lg flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+          </svg>
+        </div>
+        <div>
+          <div class="text-white font-bold text-sm">Network Bot</div>
+          <div class="text-slate-400 text-xs">Security Scanner</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 px-3 py-4 space-y-1">
+      <!-- Dashboard -->
+      <a href="/"
+         class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                {% if active_page == 'dashboard' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+        </svg>
+        <span>Dashboard</span>
+      </a>
+
+      <!-- Targets -->
+      <a href="/targets"
+         class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                {% if active_page == 'targets' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M5 12H3m18 0h-2M12 5V3m0 18v-2m4.22-13.78l-1.41 1.41M7.19 16.81l-1.41 1.41M16.81 16.81l1.41 1.41M7.19 7.19L5.78 5.78M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+        </svg>
+        <span>Targets</span>
+      </a>
+
+      <!-- Groups -->
+      <a href="/groups"
+         class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                {% if active_page == 'groups' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+        </svg>
+        <span>Groups</span>
+      </a>
+
+      <!-- Tags -->
+      <a href="/tags"
+         class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                {% if active_page == 'tags' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+        </svg>
+        <span>Tags</span>
+      </a>
+
+      <!-- Scan History -->
+      <a href="/scans"
+         class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
+                {% if active_page == 'scans' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
+        <svg class="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>Scan History</span>
+      </a>
+    </nav>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 border-t border-slate-700">
+      <div class="text-slate-500 text-xs">Network Bot &copy; 2025</div>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="flex-1 overflow-y-auto">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Live Progress Modal (shared) -->
+  <div x-data="scanProgress()" x-cloak>
+    <div x-show="open"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+         x-transition>
+      <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+        <div class="px-6 py-4 border-b flex items-center justify-between">
+          <h3 class="text-lg font-semibold text-gray-900">Live Scan Progress</h3>
+          <button @click="closeModal()" class="text-gray-400 hover:text-gray-600">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="px-6 py-4 space-y-4">
+          <!-- Progress bar -->
+          <div>
+            <div class="flex justify-between text-sm text-gray-600 mb-1">
+              <span x-text="currentCheck || 'Initializing...'"></span>
+              <span x-text="done + '/' + total"></span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+              <div class="bg-indigo-500 h-2.5 rounded-full transition-all duration-300"
+                   :style="`width: ${total > 0 ? Math.round(done/total*100) : 0}%`"></div>
+            </div>
+          </div>
+          <!-- Findings feed -->
+          <div class="h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-1 bg-gray-50 text-sm font-mono"
+               x-ref="feed">
+            <template x-for="(msg, i) in feed" :key="i">
+              <div :class="{
+                'text-red-600': msg.severity === 'critical',
+                'text-orange-500': msg.severity === 'high',
+                'text-yellow-600': msg.severity === 'medium',
+                'text-green-600': msg.severity === 'low',
+                'text-blue-500': msg.severity === 'info',
+                'text-gray-500': !msg.severity
+              }" x-text="msg.text"></div>
+            </template>
+            <div x-show="feed.length === 0" class="text-gray-400">Waiting for findings...</div>
+          </div>
+          <!-- Severity summary (shown after complete) -->
+          <div x-show="completed" class="grid grid-cols-5 gap-2 text-center">
+            <div class="bg-red-50 rounded p-2">
+              <div class="text-red-600 font-bold text-lg" x-text="counts.critical"></div>
+              <div class="text-xs text-red-500">Critical</div>
+            </div>
+            <div class="bg-orange-50 rounded p-2">
+              <div class="text-orange-500 font-bold text-lg" x-text="counts.high"></div>
+              <div class="text-xs text-orange-400">High</div>
+            </div>
+            <div class="bg-yellow-50 rounded p-2">
+              <div class="text-yellow-600 font-bold text-lg" x-text="counts.medium"></div>
+              <div class="text-xs text-yellow-500">Medium</div>
+            </div>
+            <div class="bg-green-50 rounded p-2">
+              <div class="text-green-600 font-bold text-lg" x-text="counts.low"></div>
+              <div class="text-xs text-green-500">Low</div>
+            </div>
+            <div class="bg-blue-50 rounded p-2">
+              <div class="text-blue-500 font-bold text-lg" x-text="counts.info"></div>
+              <div class="text-xs text-blue-400">Info</div>
+            </div>
+          </div>
+        </div>
+        <div class="px-6 py-4 border-t flex justify-between items-center">
+          <span x-show="!completed && !errorMsg" class="text-sm text-gray-500">
+            <span class="inline-block w-2 h-2 bg-green-400 rounded-full animate-pulse mr-1"></span>
+            Scan running...
+          </span>
+          <span x-show="completed" class="text-sm text-green-600 font-medium">Scan completed!</span>
+          <span x-show="errorMsg" class="text-sm text-red-600" x-text="errorMsg"></span>
+          <div class="flex space-x-2">
+            <a x-show="scanId && completed"
+               :href="`/scans/${scanId}`"
+               class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">
+              View Results
+            </a>
+            <button @click="closeModal()"
+                    class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
+              Close
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function scanProgress() {
+      return {
+        open: false,
+        scanId: null,
+        currentCheck: '',
+        done: 0,
+        total: 0,
+        feed: [],
+        completed: false,
+        errorMsg: '',
+        counts: {critical: 0, high: 0, medium: 0, low: 0, info: 0},
+        ws: null,
+
+        startScan(payload) {
+          this.open = true;
+          this.scanId = null;
+          this.currentCheck = '';
+          this.done = 0;
+          this.total = 0;
+          this.feed = [];
+          this.completed = false;
+          this.errorMsg = '';
+          this.counts = {critical: 0, high: 0, medium: 0, low: 0, info: 0};
+
+          fetch('/api/scans', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload),
+          })
+          .then(r => r.json())
+          .then(data => {
+            if (data.scan_id) {
+              this.scanId = data.scan_id;
+              this._connectWs(data.scan_id);
+            } else {
+              this.errorMsg = data.detail || 'Failed to start scan';
+            }
+          })
+          .catch(e => { this.errorMsg = e.message; });
+        },
+
+        _connectWs(scanId) {
+          const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+          this.ws = new WebSocket(`${proto}://${location.host}/ws/scan/${scanId}`);
+          const self = this;
+          this.ws.onmessage = function(e) {
+            const ev = JSON.parse(e.data);
+            if (ev.type === 'progress') {
+              self.currentCheck = `${ev.target} → ${ev.check}`;
+              self.done = ev.done;
+              self.total = ev.total;
+            } else if (ev.type === 'finding') {
+              self.feed.push({
+                text: `[${ev.severity.toUpperCase()}] ${ev.target}: ${ev.title}`,
+                severity: ev.severity,
+              });
+              self.$nextTick(() => {
+                const el = self.$refs.feed;
+                if (el) el.scrollTop = el.scrollHeight;
+              });
+            } else if (ev.type === 'complete') {
+              self.completed = true;
+              self.done = self.total;
+              self.counts = {
+                critical: ev.critical, high: ev.high,
+                medium: ev.medium, low: ev.low, info: ev.info,
+              };
+              self.currentCheck = 'Done';
+            } else if (ev.type === 'error') {
+              self.errorMsg = ev.message;
+            }
+          };
+        },
+
+        closeModal() {
+          if (this.ws) { this.ws.close(); this.ws = null; }
+          this.open = false;
+        },
+      };
+    }
+  </script>
+
+</body>
+</html>

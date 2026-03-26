@@ -253,6 +253,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="version",
         version=f"%(prog)s {__version__}",
     )
+
+    # Subcommands
+    subparsers = parser.add_subparsers(dest="command")
+
+    serve_parser = subparsers.add_parser("serve", help="Start the web GUI")
+    serve_parser.add_argument("--host", default="0.0.0.0", help="Bind host (default: 0.0.0.0)")
+    serve_parser.add_argument("--port", type=int, default=8080, help="Bind port (default: 8080)")
+    serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload for development")
+
     return parser
 
 
@@ -269,6 +278,35 @@ def main(argv: Optional[List[str]] = None) -> int:
     log_level = "DEBUG" if args.verbose else config.get("logging", {}).get("level", "INFO")
     log_file = config.get("logging", {}).get("file")
     _configure_logging(log_level, log_file)
+
+    # Handle `serve` subcommand
+    if getattr(args, "command", None) == "serve":
+        import uvicorn
+        from .web.app import create_app
+        from .web.db.schema import init_db, get_db
+
+        db_path = config.get("web", {}).get("db_path", "data/network_bot.db")
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+        init_db(db_path)
+
+        # Auto-import YAML targets into DB on first serve
+        from .web.db.crud import get_targets as _get_targets, import_from_yaml
+        with get_db(db_path) as db:
+            if not _get_targets(db):
+                imported = import_from_yaml(db, targets)
+                if imported:
+                    console.print(
+                        f"[green]Imported {imported} targets from YAML into database.[/green]"
+                    )
+
+        console.print(
+            f"[bold green]Starting web GUI[/bold green] at "
+            f"[cyan]http://{args.host}:{args.port}[/cyan]\n"
+        )
+
+        web_app = create_app(config)
+        uvicorn.run(web_app, host=args.host, port=args.port, reload=args.reload)
+        return 0
 
     # --target overrides targets with a single ad-hoc target running all checks
     if args.target:

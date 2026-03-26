@@ -1,21 +1,29 @@
 targets:
   - name: "Example Web Server"
     host: "example.com"
+    group: "Production"
+    tags: ["web", "external"]
     checks: ["port_scan", "ssl", "http", "dns", "vuln", "exposed_paths", "cipher"]
     ports: [80, 443, 8080]
 
   - name: "Internal Server"
     host: "192.168.1.100"
+    group: "Internal"
+    tags: ["internal", "linux"]
     checks: ["port_scan", "vuln"]
     ports: [22, 80, 443, 3306, 5432]
 
   - name: "Mail Server"
     host: "mail.example.com"
+    group: "Production"
+    tags: ["mail", "external"]
     checks: ["port_scan", "smtp", "ssl"]
     ports: [25, 587, 465, 443]
     smtp_ports: [25, 587, 465]
 
   - name: "Internal Subnet"
     host: "10.0.1.0/28"
+    group: "Internal"
+    tags: ["internal", "network"]
     checks: ["port_scan", "exposed_paths"]
     ports: [80, 443, 8080]
