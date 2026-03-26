@@ -1,7 +1,8 @@
 import copy
+import ipaddress
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import yaml
 
@@ -89,9 +90,58 @@ def load_config(
     if targets_file:
         targets_data = _load_yaml(targets_file)
 
-    targets = targets_data.get("targets", [])
+    raw_targets = targets_data.get("targets", [])
+    targets = _expand_cidr_targets(raw_targets)
 
     return {
         "config": merged_cfg,
         "targets": targets,
     }
+
+
+_MAX_CIDR_HOSTS = 256
+
+
+def _expand_cidr_targets(targets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Expand any CIDR targets into individual host targets."""
+    expanded: List[Dict[str, Any]] = []
+    for target in targets:
+        host = target.get("host", "")
+        if "/" in str(host):
+            try:
+                network = ipaddress.ip_network(host, strict=False)
+            except ValueError as exc:
+                logger.warning(
+                    "Could not parse '%s' as a CIDR network, skipping expansion: %s", host, exc
+                )
+                expanded.append(target)
+                continue
+
+            # Gather all usable host addresses (skip network and broadcast)
+            host_addrs = [str(ip) for ip in network.hosts()]
+            if not host_addrs:
+                # Single host network (e.g. /32 or /128)
+                host_addrs = [str(network.network_address)]
+
+            if len(host_addrs) > _MAX_CIDR_HOSTS:
+                logger.warning(
+                    "CIDR %s expands to %d hosts; capping at %d",
+                    host,
+                    len(host_addrs),
+                    _MAX_CIDR_HOSTS,
+                )
+                host_addrs = host_addrs[:_MAX_CIDR_HOSTS]
+
+            base_name = target.get("name", str(host))
+            for ip_str in host_addrs:
+                host_target = copy.deepcopy(target)
+                host_target["host"] = ip_str
+                host_target["name"] = f"{base_name} ({ip_str})"
+                expanded.append(host_target)
+
+            logger.info(
+                "Expanded CIDR %s into %d individual host targets", host, len(host_addrs)
+            )
+        else:
+            expanded.append(target)
+    return expanded

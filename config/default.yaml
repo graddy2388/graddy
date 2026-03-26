@@ -29,3 +29,30 @@ reporting:
 logging:
   level: "INFO"
   file: "logs/network_bot.log"
+
+alerting:
+  enabled: false
+  min_severity: "high"
+  teams:
+    enabled: false
+    webhook_url: ""
+  email:
+    enabled: false
+    smtp_host: ""
+    smtp_port: 587
+    smtp_user: ""
+    smtp_password: ""
+    from_addr: ""
+    to_addrs: []
+    use_tls: true
+
+exposed_paths:
+  timeout: 5
+  max_paths: 50
+
+smtp:
+  timeout: 10
+  test_relay: false
+
+cipher:
+  timeout: 5

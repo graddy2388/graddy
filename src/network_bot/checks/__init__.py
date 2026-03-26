@@ -4,6 +4,9 @@ from .ssl_check import SSLCheck
 from .http_check import HTTPCheck
 from .dns_check import DNSCheck
 from .vuln_check import VulnCheck
+from .smtp_check import SMTPCheck
+from .exposed_paths import ExposedPathsCheck
+from .cipher_check import CipherCheck
 
 __all__ = [
     "BaseCheck",
@@ -15,4 +18,7 @@ __all__ = [
     "HTTPCheck",
     "DNSCheck",
     "VulnCheck",
+    "SMTPCheck",
+    "ExposedPathsCheck",
+    "CipherCheck",
 ]

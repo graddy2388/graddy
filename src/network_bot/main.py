@@ -18,8 +18,9 @@ from rich.table import Table
 from rich import box
 
 from . import __version__
+from .alerting import AlertDispatcher
 from .checks.base import CheckResult, Severity
-from .checks import PortScanCheck, SSLCheck, HTTPCheck, DNSCheck, VulnCheck
+from .checks import PortScanCheck, SSLCheck, HTTPCheck, DNSCheck, VulnCheck, SMTPCheck, ExposedPathsCheck, CipherCheck
 from .config import load_config
 from .reports.generator import ReportGenerator
 from .scheduler import BotScheduler
@@ -43,6 +44,9 @@ CHECK_REGISTRY = {
     "http": HTTPCheck,
     "dns": DNSCheck,
     "vuln": VulnCheck,
+    "smtp": SMTPCheck,
+    "exposed_paths": ExposedPathsCheck,
+    "cipher": CipherCheck,
 }
 
 SEVERITY_STYLES = {
@@ -82,6 +86,7 @@ class NetworkBot:
         self._config = config
         self._targets = targets
         self._reporter = ReportGenerator(config)
+        self._alerter = AlertDispatcher(config)
 
     def run_checks(self) -> List[CheckResult]:
         """Run all configured checks against all targets and generate a report."""
@@ -157,6 +162,9 @@ class NetworkBot:
         # Print summary
         self._print_summary(all_results, report_paths)
 
+        # Dispatch alerts
+        self._alerter.dispatch(all_results, timestamp)
+
         return all_results
 
     def _print_summary(
@@ -230,6 +238,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Report format to generate (overrides config).",
     )
     parser.add_argument(
+        "--target",
+        metavar="HOST",
+        default=None,
+        help="Ad-hoc single host to scan (overrides targets file, runs all checks).",
+    )
+    parser.add_argument(
         "--verbose",
         action="store_true",
         help="Enable debug-level logging.",
@@ -255,6 +269,16 @@ def main(argv: Optional[List[str]] = None) -> int:
     log_level = "DEBUG" if args.verbose else config.get("logging", {}).get("level", "INFO")
     log_file = config.get("logging", {}).get("file")
     _configure_logging(log_level, log_file)
+
+    # --target overrides targets with a single ad-hoc target running all checks
+    if args.target:
+        targets = [
+            {
+                "host": args.target,
+                "name": args.target,
+                "checks": list(CHECK_REGISTRY.keys()),
+            }
+        ]
 
     if args.output:
         config.setdefault("reporting", {})["output_dir"] = args.output
