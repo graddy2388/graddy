@@ -134,7 +134,12 @@ def _attach_tags(db, targets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
 def get_targets(db, group_id=None, tag_id=None, enabled_only=False) -> List[Dict[str, Any]]:
     query = """
-        SELECT t.*, g.name AS group_name, g.color AS group_color
+        SELECT t.id, t.name, t.host, t.group_id, t.checks, t.ports, t.smtp_ports,
+               t.enabled, t.notes, t.created_at, t.updated_at,
+               COALESCE(t.hostname, '') AS hostname,
+               COALESCE(t.last_resolved_ip, '') AS last_resolved_ip,
+               COALESCE(t.last_resolved_at, '') AS last_resolved_at,
+               g.name AS group_name, g.color AS group_color
         FROM targets t
         LEFT JOIN groups g ON g.id = t.group_id
     """
@@ -165,7 +170,12 @@ def get_targets(db, group_id=None, tag_id=None, enabled_only=False) -> List[Dict
 def get_target(db, id: int) -> Optional[Dict[str, Any]]:
     cur = db.execute(
         """
-        SELECT t.*, g.name AS group_name, g.color AS group_color
+        SELECT t.id, t.name, t.host, t.group_id, t.checks, t.ports, t.smtp_ports,
+               t.enabled, t.notes, t.created_at, t.updated_at,
+               COALESCE(t.hostname, '') AS hostname,
+               COALESCE(t.last_resolved_ip, '') AS last_resolved_ip,
+               COALESCE(t.last_resolved_at, '') AS last_resolved_at,
+               g.name AS group_name, g.color AS group_color
         FROM targets t
         LEFT JOIN groups g ON g.id = t.group_id
         WHERE t.id = ?
@@ -188,6 +198,9 @@ def create_target(
     smtp_ports=None,
     enabled: int = 1,
     notes: str = "",
+    hostname: str = "",
+    last_resolved_ip: str = "",
+    last_resolved_at: str = "",
 ) -> Dict[str, Any]:
     checks_json = json.dumps(checks) if checks is not None else '["port_scan","ssl","http","dns","vuln","exposed_paths","cipher"]'
     ports_json = json.dumps(ports) if ports is not None else '[80,443]'
@@ -195,17 +208,20 @@ def create_target(
 
     cur = db.execute(
         """
-        INSERT INTO targets (name, host, group_id, checks, ports, smtp_ports, enabled, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO targets (name, host, group_id, checks, ports, smtp_ports, enabled, notes,
+                             hostname, last_resolved_ip, last_resolved_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
-        (name, host, group_id, checks_json, ports_json, smtp_ports_json, int(enabled), notes),
+        (name, host, group_id, checks_json, ports_json, smtp_ports_json, int(enabled), notes,
+         hostname, last_resolved_ip, last_resolved_at),
     )
     db.commit()
     return get_target(db, cur.lastrowid)
 
 
 def update_target(db, id: int, **fields) -> Optional[Dict[str, Any]]:
-    allowed = {"name", "host", "group_id", "checks", "ports", "smtp_ports", "enabled", "notes"}
+    allowed = {"name", "host", "group_id", "checks", "ports", "smtp_ports", "enabled", "notes",
+               "hostname", "last_resolved_ip", "last_resolved_at"}
     update_fields = {k: v for k, v in fields.items() if k in allowed}
 
     # Serialize list fields to JSON
@@ -242,11 +258,6 @@ def set_target_tags(db, target_id: int, tag_ids: List[int]) -> None:
 
 
 def import_from_yaml(db, targets: List[Dict[str, Any]]) -> int:
-    """
-    Import targets from a YAML-loaded list of dicts.
-    Handles group and tags fields automatically.
-    Returns the count of targets imported.
-    """
     imported = 0
     for t in targets:
         host = t.get("host", "")
@@ -254,7 +265,6 @@ def import_from_yaml(db, targets: List[Dict[str, Any]]) -> int:
         if not host:
             continue
 
-        # Resolve or create group
         group_id = None
         group_name = t.get("group")
         if group_name:
@@ -263,9 +273,7 @@ def import_from_yaml(db, targets: List[Dict[str, Any]]) -> int:
             if row:
                 group_id = row["id"]
             else:
-                cur2 = db.execute(
-                    "INSERT INTO groups (name) VALUES (?)", (group_name,)
-                )
+                cur2 = db.execute("INSERT INTO groups (name) VALUES (?)", (group_name,))
                 db.commit()
                 group_id = cur2.lastrowid
 
@@ -289,7 +297,6 @@ def import_from_yaml(db, targets: List[Dict[str, Any]]) -> int:
         db.commit()
         target_id = cur.lastrowid
 
-        # Resolve or create tags
         tag_names = t.get("tags", [])
         tag_ids = []
         for tag_name in tag_names:
@@ -413,13 +420,153 @@ def add_scan_result(
     db.commit()
 
 
+def add_host_history(
+    db,
+    target_id: int,
+    hostname: str,
+    ip_address: str,
+) -> None:
+    db.execute(
+        """
+        INSERT INTO host_history (target_id, hostname, ip_address)
+        VALUES (?, ?, ?)
+        """,
+        (target_id, hostname, ip_address),
+    )
+    db.commit()
+
+
+def get_host_history(db, target_id: int) -> List[Dict[str, Any]]:
+    cur = db.execute(
+        "SELECT * FROM host_history WHERE target_id = ? ORDER BY resolved_at DESC",
+        (target_id,),
+    )
+    return _rows(cur.fetchall())
+
+
+def get_dashboard_stats(db) -> dict:
+    """Return aggregated stats for the dashboard."""
+    cur = db.execute(
+        "SELECT id FROM scans WHERE status = 'completed' ORDER BY started_at DESC LIMIT 10"
+    )
+    recent_scan_ids = [r["id"] for r in cur.fetchall()]
+
+    threat_map: Dict[str, Dict[str, Any]] = {}
+    recent_findings: List[Dict[str, Any]] = []
+
+    if recent_scan_ids:
+        placeholders = ",".join("?" * len(recent_scan_ids))
+        cur = db.execute(
+            f"""
+            SELECT sr.target_name, sr.target_host, sr.check_name, sr.findings,
+                   sr.scan_id, sr.timestamp
+            FROM scan_results sr
+            WHERE sr.scan_id IN ({placeholders})
+            ORDER BY sr.scan_id DESC, sr.id DESC
+            """,
+            recent_scan_ids,
+        )
+        for row in cur.fetchall():
+            try:
+                findings_list = json.loads(row["findings"] or "[]")
+            except Exception:
+                findings_list = []
+            target_label = row["target_name"] or row["target_host"]
+            for f in findings_list:
+                title = f.get("title", "")
+                severity = f.get("severity", "info")
+                key = f"{title}|{severity}"
+                if key not in threat_map:
+                    threat_map[key] = {"title": title, "severity": severity, "count": 0, "targets": []}
+                threat_map[key]["count"] += 1
+                if target_label not in threat_map[key]["targets"]:
+                    threat_map[key]["targets"].append(target_label)
+                if len(recent_findings) < 15:
+                    recent_findings.append({
+                        "target": target_label,
+                        "check": row["check_name"],
+                        "severity": severity,
+                        "title": title,
+                        "scan_id": row["scan_id"],
+                        "ts": row["timestamp"] or "",
+                    })
+
+    sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    top_threats = sorted(
+        threat_map.values(),
+        key=lambda x: (sev_order.get(x["severity"], 5), -x["count"]),
+    )[:10]
+
+    cur = db.execute(
+        """
+        SELECT sr.target_name, sr.target_host, sr.findings
+        FROM scan_results sr
+        INNER JOIN (
+            SELECT target_host, MAX(scan_id) AS max_scan_id
+            FROM scan_results
+            GROUP BY target_host
+        ) latest ON sr.target_host = latest.target_host AND sr.scan_id = latest.max_scan_id
+        """
+    )
+    vuln_map: Dict[str, Dict[str, Any]] = {}
+    for row in cur.fetchall():
+        try:
+            findings_list = json.loads(row["findings"] or "[]")
+        except Exception:
+            findings_list = []
+        host = row["target_host"]
+        name = row["target_name"] or host
+        if host not in vuln_map:
+            vuln_map[host] = {"name": name, "host": host, "critical": 0, "high": 0}
+        for f in findings_list:
+            sev = f.get("severity", "")
+            if sev == "critical":
+                vuln_map[host]["critical"] += 1
+            elif sev == "high":
+                vuln_map[host]["high"] += 1
+
+    for v in vuln_map.values():
+        v["score"] = v["critical"] * 10 + v["high"] * 5
+
+    vulnerable_targets = sorted(
+        vuln_map.values(), key=lambda x: -x["score"]
+    )[:5]
+
+    cur = db.execute(
+        """
+        SELECT id, started_at, critical_count, high_count, medium_count, low_count, info_count
+        FROM scans
+        WHERE status = 'completed'
+        ORDER BY started_at DESC
+        LIMIT 7
+        """
+    )
+    trend_rows = list(reversed(_rows(cur.fetchall())))
+    trend = []
+    for row in trend_rows:
+        label = (row["started_at"] or "")[:10]
+        trend.append({
+            "label": label,
+            "critical": row["critical_count"] or 0,
+            "high": row["high_count"] or 0,
+            "medium": row["medium_count"] or 0,
+            "low": row["low_count"] or 0,
+        })
+
+    return {
+        "top_threats": top_threats,
+        "vulnerable_targets": vulnerable_targets,
+        "trend": trend,
+        "recent_findings": recent_findings[:15],
+    }
+
+
 def get_scan_results(db, scan_id: int) -> List[Dict[str, Any]]:
     cur = db.execute(
         "SELECT * FROM scan_results WHERE scan_id = ? ORDER BY id",
         (scan_id,),
     )
     rows = _rows(cur.fetchall())
-    # Parse JSON fields
     for row in rows:
         if isinstance(row.get("findings"), str):
             try:
