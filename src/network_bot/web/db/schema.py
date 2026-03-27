@@ -36,7 +36,18 @@ CREATE TABLE IF NOT EXISTS targets (
     enabled INTEGER DEFAULT 1,
     notes TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now')),
-    updated_at TEXT DEFAULT (datetime('now'))
+    updated_at TEXT DEFAULT (datetime('now')),
+    hostname TEXT DEFAULT '',
+    last_resolved_ip TEXT DEFAULT '',
+    last_resolved_at TEXT DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS host_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_id INTEGER REFERENCES targets(id) ON DELETE CASCADE,
+    hostname TEXT DEFAULT '',
+    ip_address TEXT DEFAULT '',
+    resolved_at TEXT DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS target_tags (
@@ -92,10 +103,34 @@ def get_db(db_path: str):
         conn.close()
 
 
+def _migrate(conn) -> None:
+    """Add new columns to existing tables if they do not already exist."""
+    existing = {row[1] for row in conn.execute("PRAGMA table_info(targets)")}
+    for col, defn in [
+        ("hostname", "TEXT DEFAULT ''"),
+        ("last_resolved_ip", "TEXT DEFAULT ''"),
+        ("last_resolved_at", "TEXT DEFAULT ''"),
+    ]:
+        if col not in existing:
+            conn.execute(f"ALTER TABLE targets ADD COLUMN {col} {defn}")
+    # Ensure host_history table exists (for DBs created before this feature)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS host_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_id INTEGER REFERENCES targets(id) ON DELETE CASCADE,
+            hostname TEXT DEFAULT '',
+            ip_address TEXT DEFAULT '',
+            resolved_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+    conn.commit()
+
+
 def init_db(db_path: str) -> None:
     """Create all tables if they do not already exist."""
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.executescript(_SCHEMA_SQL)
     conn.commit()
+    _migrate(conn)
     conn.close()

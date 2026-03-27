@@ -11,8 +11,9 @@ from pydantic import BaseModel
 
 from ..db.crud import (
     get_targets, get_target, create_target, update_target, delete_target,
-    set_target_tags, import_from_yaml,
+    set_target_tags, import_from_yaml, add_host_history, get_host_history,
 )
+from ..resolver import resolve_host
 
 
 class TargetIn(BaseModel):
@@ -65,6 +66,7 @@ def make_router(get_db_dep) -> APIRouter:
     @r.post("", status_code=201)
     def create(body: TargetIn, db=Depends(get_db_dep)):
         try:
+            resolved = resolve_host(body.host)
             target = create_target(
                 db,
                 name=body.name,
@@ -75,10 +77,17 @@ def make_router(get_db_dep) -> APIRouter:
                 smtp_ports=body.smtp_ports,
                 enabled=body.enabled,
                 notes=body.notes,
+                hostname=resolved["hostname"],
+                last_resolved_ip=resolved["ip_address"],
+                last_resolved_at=resolved["resolved_at"],
             )
             if body.tag_ids:
                 set_target_tags(db, target["id"], body.tag_ids)
                 target = get_target(db, target["id"])
+            # Record initial host_history entry
+            add_host_history(
+                db, target["id"], resolved["hostname"], resolved["ip_address"]
+            )
             return target
         except Exception as exc:
             raise HTTPException(status_code=400, detail=str(exc))
@@ -90,6 +99,15 @@ def make_router(get_db_dep) -> APIRouter:
             raise HTTPException(status_code=404, detail="Target not found")
 
         update_data = body.model_dump(exclude_none=True, exclude={"tag_ids"})
+
+        # If host field is being updated, re-resolve
+        if "host" in update_data:
+            resolved = resolve_host(update_data["host"])
+            update_data["hostname"] = resolved["hostname"]
+            update_data["last_resolved_ip"] = resolved["ip_address"]
+            update_data["last_resolved_at"] = resolved["resolved_at"]
+            add_host_history(db, id, resolved["hostname"], resolved["ip_address"])
+
         if update_data:
             result = update_target(db, id, **update_data)
         else:
@@ -110,5 +128,28 @@ def make_router(get_db_dep) -> APIRouter:
     def import_targets(body: ImportBody, db=Depends(get_db_dep)):
         count = import_from_yaml(db, body.targets)
         return {"imported": count}
+
+    @r.get("/{id}/history")
+    def target_history(id: int, db=Depends(get_db_dep)):
+        existing = get_target(db, id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Target not found")
+        return get_host_history(db, id)
+
+    @r.post("/{id}/resolve")
+    def resolve_target(id: int, db=Depends(get_db_dep)):
+        existing = get_target(db, id)
+        if existing is None:
+            raise HTTPException(status_code=404, detail="Target not found")
+        resolved = resolve_host(existing["host"])
+        result = update_target(
+            db,
+            id,
+            hostname=resolved["hostname"],
+            last_resolved_ip=resolved["ip_address"],
+            last_resolved_at=resolved["resolved_at"],
+        )
+        add_host_history(db, id, resolved["hostname"], resolved["ip_address"])
+        return result
 
     return r

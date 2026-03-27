@@ -52,11 +52,13 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     from .api.tags import make_router as tags_router
     from .api.targets import make_router as targets_router
     from .api.scans import make_router as scans_router
+    from .api.dashboard import make_router as dashboard_router
 
     app.include_router(groups_router(get_db_dep))
     app.include_router(tags_router(get_db_dep))
     app.include_router(targets_router(get_db_dep))
     app.include_router(scans_router(get_db_dep, config, db_path, active_scans))
+    app.include_router(dashboard_router(get_db_dep))
 
     # -------------------------------------------------------------------------
     # Page routes
@@ -77,6 +79,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
                 "request": request,
                 "active_page": "dashboard",
                 "scans": scans,
+                "targets": targets,
                 "total_targets": len(targets),
                 "total_groups": len(groups),
                 "total_tags": len(tags),
