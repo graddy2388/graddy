@@ -4,13 +4,12 @@ network_bot.web.app – FastAPI application factory.
 from __future__ import annotations
 
 import asyncio
-import json
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from .db.crud import get_scans, get_targets, get_groups, get_tags, get_scan, get_scan_results
@@ -33,6 +32,16 @@ def _make_db_dep(db_path: str):
         finally:
             conn.close()
     return dep
+
+
+def _tr(templates: Jinja2Templates, request: Request, name: str, ctx: dict):
+    """Compatibility wrapper: tries new API (request first), falls back to old."""
+    try:
+        return templates.TemplateResponse(request=request, name=name, context=ctx)
+    except TypeError:
+        ctx = dict(ctx)
+        ctx["request"] = request
+        return templates.TemplateResponse(name=name, context=ctx)
 
 
 def create_app(config: Dict[str, Any]) -> FastAPI:
@@ -73,19 +82,15 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             tags = get_tags(db)
             last_scan = scans[0] if scans else None
 
-        return templates.TemplateResponse(
-            "dashboard.html",
-            {
-                "request": request,
-                "active_page": "dashboard",
-                "scans": scans,
-                "targets": targets,
-                "total_targets": len(targets),
-                "total_groups": len(groups),
-                "total_tags": len(tags),
-                "last_scan": last_scan,
-            },
-        )
+        return _tr(templates, request, "dashboard.html", {
+            "active_page": "dashboard",
+            "scans": scans,
+            "targets": targets,
+            "total_targets": len(targets),
+            "total_groups": len(groups),
+            "total_tags": len(tags),
+            "last_scan": last_scan,
+        })
 
     @app.get("/targets", response_class=HTMLResponse)
     async def targets_page(request: Request):
@@ -94,17 +99,13 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             groups = get_groups(db)
             tags = get_tags(db)
 
-        return templates.TemplateResponse(
-            "targets.html",
-            {
-                "request": request,
-                "active_page": "targets",
-                "targets": targets,
-                "groups": groups,
-                "tags": tags,
-                "checks_list": ["port_scan", "ssl", "http", "dns", "vuln", "smtp", "exposed_paths", "cipher"],
-            },
-        )
+        return _tr(templates, request, "targets.html", {
+            "active_page": "targets",
+            "targets": targets,
+            "groups": groups,
+            "tags": tags,
+            "checks_list": ["port_scan", "ssl", "http", "dns", "vuln", "smtp", "exposed_paths", "cipher"],
+        })
 
     @app.get("/groups", response_class=HTMLResponse)
     async def groups_page(request: Request):
@@ -112,30 +113,22 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             groups = get_groups(db)
             tags = get_tags(db)
 
-        return templates.TemplateResponse(
-            "groups.html",
-            {
-                "request": request,
-                "active_page": "groups",
-                "groups": groups,
-                "tags": tags,
-            },
-        )
+        return _tr(templates, request, "groups.html", {
+            "active_page": "groups",
+            "groups": groups,
+            "tags": tags,
+        })
 
     @app.get("/tags", response_class=HTMLResponse)
     async def tags_page(request: Request):
         with get_db(db_path) as db:
             tags = get_tags(db)
 
-        return templates.TemplateResponse(
-            "groups.html",
-            {
-                "request": request,
-                "active_page": "tags",
-                "groups": [],
-                "tags": tags,
-            },
-        )
+        return _tr(templates, request, "groups.html", {
+            "active_page": "tags",
+            "groups": [],
+            "tags": tags,
+        })
 
     @app.get("/scans", response_class=HTMLResponse)
     async def scan_history(request: Request, page: int = 1):
@@ -146,18 +139,14 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             total = len(all_scans)
             scans = all_scans[offset: offset + page_size]
 
-        return templates.TemplateResponse(
-            "scan_history.html",
-            {
-                "request": request,
-                "active_page": "scans",
-                "scans": scans,
-                "page": page,
-                "page_size": page_size,
-                "total": total,
-                "total_pages": max(1, (total + page_size - 1) // page_size),
-            },
-        )
+        return _tr(templates, request, "scan_history.html", {
+            "active_page": "scans",
+            "scans": scans,
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": max(1, (total + page_size - 1) // page_size),
+        })
 
     @app.get("/scans/{id}", response_class=HTMLResponse)
     async def scan_detail(request: Request, id: int):
@@ -167,21 +156,16 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
                 return HTMLResponse("Scan not found", status_code=404)
             results = get_scan_results(db, id)
 
-        # Collect unique targets and check names for filter dropdowns
         unique_targets = sorted(set(r["target_host"] for r in results))
         unique_checks = sorted(set(r["check_name"] for r in results))
 
-        return templates.TemplateResponse(
-            "scan_detail.html",
-            {
-                "request": request,
-                "active_page": "scans",
-                "scan": scan,
-                "results": results,
-                "unique_targets": unique_targets,
-                "unique_checks": unique_checks,
-            },
-        )
+        return _tr(templates, request, "scan_detail.html", {
+            "active_page": "scans",
+            "scan": scan,
+            "results": results,
+            "unique_targets": unique_targets,
+            "unique_checks": unique_checks,
+        })
 
     # -------------------------------------------------------------------------
     # WebSocket for live scan progress
@@ -191,7 +175,6 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     async def ws_scan_progress(websocket: WebSocket, scan_id: int):
         await websocket.accept()
         try:
-            # Poll until queue appears (scan may not have started yet)
             for _ in range(50):
                 if scan_id in active_scans:
                     break
@@ -210,7 +193,6 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
                     if event.get("type") in ("complete", "error"):
                         break
                 except asyncio.TimeoutError:
-                    # Send keep-alive ping
                     await websocket.send_json({"type": "ping"})
 
         except WebSocketDisconnect:
