@@ -1,12 +1,12 @@
 # Configuration
 
-Network Bot ships with sensible defaults in `config/default.yaml`. You rarely need to change anything to get started, but this page documents every available option.
+Network Bot ships with sensible defaults in `config/default.yaml`. You only need to include keys you want to override.
 
 ---
 
 ## How Configuration Works
 
-On startup the bot loads `config/default.yaml` from inside the package. Supply `--config myconfig.yaml` to override specific values — you only need to include keys you want to change.
+On startup the bot loads `config/default.yaml`. If you supply `--config myconfig.yaml`, your file is merged on top of the defaults.
 
 ```bash
 network-bot --config /etc/network-bot/myconfig.yaml
@@ -14,98 +14,85 @@ network-bot --config /etc/network-bot/myconfig.yaml
 
 ---
 
-## Environment Variables
-
-| Variable | Purpose |
-|----------|---------|
-| `NETWORK_BOT_ROOT` | Base directory for resolving `db_path`, `output_dir`, and `logs/`. Set to `/app` automatically in Docker. |
-
----
-
-## Section Reference
-
-### `scheduler`
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `interval_minutes` | `60` | How often the scheduler runs a full scan cycle. |
-| `enabled` | `true` | Set to `false` to run once then exit. |
-
-### `scanning`
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `port_timeout` | `3` | Seconds to wait for TCP connect. |
-| `common_ports` | *(see default.yaml)* | Default ports when target has no `ports` list. |
-| `max_workers` | `50` | Max concurrent scan threads per target. |
-
-### `ssl`
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `warn_expiry_days` | `30` | Certs expiring within this many days → HIGH finding. |
-| `check_weak_ciphers` | `true` | Test for TLS 1.0 / TLS 1.1 support. |
-
-### `http`
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `timeout` | `10` | HTTP request timeout in seconds. |
-| `follow_redirects` | `true` | Follow HTTP redirects. |
-| `user_agent` | `NetworkBot/1.0 Security Scanner` | User-Agent header. |
-
-### `dns`
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `check_spf` | `true` | Check for SPF TXT record. |
-| `check_dmarc` | `true` | Check for DMARC record. |
-| `check_dnssec` | `false` | DNSSEC validation (reserved). |
-
-### `alerting`
-
-See the [Alerting guide](alerting.md) for full setup.
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `enabled` | `false` | Master switch. |
-| `min_severity` | `"high"` | Only alert on findings at this level or above. |
-| `teams.webhook_url` | `""` | Teams Incoming Webhook URL. |
-| `email.smtp_host` | `""` | SMTP server hostname. |
-| `email.smtp_port` | `587` | SMTP port. |
-| `email.from_addr` | `""` | Sender address. |
-| `email.to_addrs` | `[]` | List of recipient addresses. |
-
-### `web`
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `db_path` | `"data/network_bot.db"` | SQLite database path. |
-| `host` | `"0.0.0.0"` | Bind address. |
-| `port` | `8080` | Listen port. |
-| `secret_key` | `"change-me-in-production"` | Session signing key — change this! |
-
----
-
-## Minimal Override Example
+## Full Default Configuration
 
 ```yaml
 scheduler:
-  interval_minutes: 120
+  interval_minutes: 60
+  enabled: true
+
+scanning:
+  port_timeout: 3
+  common_ports: [21, 22, 23, 25, 53, 80, 110, 143, 443, 445, 3306, 3389, 5432, 6379, 8080, 8443, 27017]
+  max_workers: 50
 
 ssl:
-  warn_expiry_days: 14
+  warn_expiry_days: 30
+  check_weak_ciphers: true
+
+http:
+  timeout: 10
+  follow_redirects: true
+  user_agent: "NetworkBot/1.0 Security Scanner"
+
+dns:
+  check_spf: true
+  check_dmarc: true
+
+reporting:
+  output_dir: "reports"
+  formats: ["json", "html"]
+  keep_last: 10
+
+logging:
+  level: "INFO"
+  file: "logs/network_bot.log"
 
 alerting:
-  enabled: true
+  enabled: false
   min_severity: "high"
   teams:
-    enabled: true
-    webhook_url: "https://outlook.office.com/webhook/YOUR_URL"
+    enabled: false
+    webhook_url: ""
+  email:
+    enabled: false
+    smtp_host: ""
+    smtp_port: 587
+    smtp_user: ""
+    smtp_password: ""
+    from_addr: ""
+    to_addrs: []
+    use_tls: true
+
+exposed_paths:
+  timeout: 5
+  max_paths: 50
+
+smtp:
+  timeout: 10
+  test_relay: false
+
+cipher:
+  timeout: 5
 
 web:
-  secret_key: "your-long-random-secret"
+  db_path: "data/network_bot.db"
+  host: "0.0.0.0"
+  port: 8080
+  secret_key: "change-me-in-production"
 ```
+
+---
+
+## Key Options
+
+| Section | Option | Default | Description |
+|---------|--------|---------|-------------|
+| `scheduler` | `interval_minutes` | 60 | Scan repeat interval |
+| `ssl` | `warn_expiry_days` | 30 | Days before cert expiry to raise HIGH |
+| `alerting` | `enabled` | false | Master alerting switch |
+| `alerting` | `min_severity` | high | Minimum severity to alert on |
+| `web` | `secret_key` | *(change me)* | Session signing secret |
 
 ---
 

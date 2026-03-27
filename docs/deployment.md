@@ -2,48 +2,38 @@
 
 ---
 
-## Docker Compose / Portainer
+## Docker Compose (Recommended)
 
 ```yaml
 services:
   network-bot:
     image: ghcr.io/graddy2388/graddy:latest
     ports:
-      - "8080:8080"
+      - "8088:8080"
     volumes:
       - netbot-data:/app/data
       - netbot-logs:/app/logs
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
 
 volumes:
   netbot-data:
   netbot-logs:
 ```
 
-### Portainer Steps
-
-1. **Stacks** → **Add stack**
-2. Paste the YAML above
-3. Click **Deploy the stack**
-4. Wait 10–15s for health check → navigate to `http://<host>:8080`
-
-> **Port conflict?** Change `8080:8080` to e.g. `8088:8080`. Don't change the right side.
+```bash
+docker compose up -d
+```
 
 ---
 
-## Updating
+## Portainer
 
-```bash
-docker compose pull && docker compose up -d
-```
+1. **Stacks** → **Add stack** → **Web editor**
+2. Paste the compose YAML above
+3. Click **Deploy the stack**
+4. Navigate to `http://<your-host>:8088`
 
-In Portainer: **Pull and redeploy**. Named volumes (database, logs) are untouched.
+**Updating:** Open the stack → **Pull and redeploy**.
 
 ---
 
@@ -51,8 +41,8 @@ In Portainer: **Pull and redeploy**. Named volumes (database, logs) are untouche
 
 | Volume | Contents |
 |--------|----------|
-| `netbot-data` | `network_bot.db` — SQLite with all targets, scans, findings |
-| `netbot-logs` | `network_bot.log` |
+| `netbot-data` | SQLite database (`network_bot.db`) |
+| `netbot-logs` | Log file |
 
 ### Backup
 
@@ -60,68 +50,50 @@ In Portainer: **Pull and redeploy**. Named volumes (database, logs) are untouche
 docker compose cp network-bot:/app/data/network_bot.db ./backup-$(date +%Y%m%d).db
 ```
 
-### Restore
-
-```bash
-docker compose stop
-docker compose cp ./backup.db network-bot:/app/data/network_bot.db
-docker compose start
-```
-
 ---
 
 ## Reverse Proxy
 
+### Nginx Proxy Manager
+
+- Forward to container port `8080`
+- Enable **Websockets Support** (required for live scan progress)
+
 ### Nginx
 
 ```nginx
-server {
-    listen 443 ssl http2;
-    server_name netbot.yourorg.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-
-        # Required for WebSocket live scan progress
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_read_timeout 86400;
-    }
+location / {
+    proxy_pass http://127.0.0.1:8088;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host $host;
 }
-```
-
-### Nginx Proxy Manager
-
-- Forward port: `8080`
-- Enable **Websockets Support** (required for live scan progress)
-
-### Traefik
-
-```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.netbot.rule=Host(`netbot.yourorg.com`)"
-  - "traefik.http.routers.netbot.entrypoints=websecure"
-  - "traefik.http.routers.netbot.tls.certresolver=letsencrypt"
-  - "traefik.http.services.netbot.loadbalancer.server.port=8080"
 ```
 
 ---
 
-## Security Hardening
+## Port Conflicts
 
-- **Change the secret key** — set `web.secret_key` in your config: `openssl rand -hex 32`
-- **Restrict access** — bind to localhost only: `127.0.0.1:8080:8080`
-- **Add authentication** — Network Bot has no built-in login; use your reverse proxy (NPM access lists, Traefik ForwardAuth, Nginx `auth_basic`)
-- **Keep updated** — run `docker compose pull && docker compose up -d` regularly
+Change the host-side port if 8088 is taken:
+
+```yaml
+ports:
+  - "9090:8080"
+```
+
+---
+
+## Security Tips
+
+- Set `web.secret_key` to a random string: `openssl rand -hex 32`
+- Restrict access with your reverse proxy (basic auth, SSO)
+- Run `docker compose pull && docker compose up -d` regularly for updates
 
 ---
 
 ## Related Pages
 
-- [Installation & Setup](installation.md)
+- [Installation](installation.md)
 - [Configuration](configuration.md)
 - [CLI Reference](cli.md)

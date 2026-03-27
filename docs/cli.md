@@ -1,15 +1,9 @@
 # CLI Reference
 
-Network Bot is invoked via the `network-bot` command. Running it with no arguments starts the web GUI on port 8080.
-
----
-
-## Command Overview
-
 ```
-network-bot                     Start web GUI (default)
-network-bot serve               Start web GUI (explicit)
-network-bot scan                Run headless CLI scan
+network-bot                  Start web GUI (default)
+network-bot serve            Start web GUI (explicit)
+network-bot scan             Headless scan mode
 ```
 
 ---
@@ -17,9 +11,9 @@ network-bot scan                Run headless CLI scan
 ## Global Flags
 
 ```
---config FILE        YAML config file to merge over defaults.
---verbose            Enable DEBUG-level logging.
---version            Print version and exit.
+--config FILE    Path to YAML config file
+--verbose        Enable DEBUG logging
+--version        Print version and exit
 ```
 
 ---
@@ -27,11 +21,10 @@ network-bot scan                Run headless CLI scan
 ## `network-bot serve`
 
 ```
-Options:
-  --host HOST         Bind address. Default: 0.0.0.0
-  --port PORT         Port. Default: 8080
-  --targets FILE      YAML targets to import on first run (ignored after that).
-  --reload            Auto-reload on file changes (development only).
+--host HOST      Bind address (default: 0.0.0.0)
+--port PORT      Port (default: 8080)
+--targets FILE   YAML targets file to import on first run
+--reload         Auto-reload on code changes (dev only)
 ```
 
 ### Examples
@@ -40,22 +33,19 @@ Options:
 network-bot serve
 network-bot serve --port 9090
 network-bot serve --targets config/targets.yaml
-network-bot --config myconfig.yaml serve --targets targets.yaml
+network-bot serve --reload
 ```
 
 ---
 
 ## `network-bot scan`
 
-Headless scan — no web server. Writes JSON/HTML reports to disk.
-
 ```
-Options:
-  --target HOST       Scan a single host (all checks).
-  --targets FILE      YAML targets file.
-  --once              Run once and exit (skip scheduler).
-  --output DIR        Report output directory. Default: reports/
-  --format FORMAT     json | html | both. Default: both
+--target HOST    Scan a single host
+--targets FILE   YAML targets file
+--once           Run once and exit (no scheduler)
+--output DIR     Report output directory
+--format FORMAT  json | html | both
 ```
 
 ### Examples
@@ -63,18 +53,14 @@ Options:
 ```bash
 network-bot scan --target example.com --once
 network-bot scan --targets config/targets.yaml --once --format json
-network-bot scan --targets config/targets.yaml          # repeating scheduler
-network-bot --config prod.yaml scan --targets targets.yaml --once
+network-bot scan --targets config/targets.yaml   # runs on schedule
 ```
 
 ---
 
-## Exit Codes
+## Scheduler Behaviour
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Error (no targets, config error, etc.) |
+Without `--once`, the scanner runs immediately then repeats every `scheduler.interval_minutes` (default 60). Press Ctrl+C to stop.
 
 ---
 
