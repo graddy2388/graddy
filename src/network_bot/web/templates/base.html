@@ -32,7 +32,6 @@
 
     <!-- Navigation -->
     <nav class="flex-1 px-3 py-4 space-y-1">
-      <!-- Dashboard -->
       <a href="/"
          class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
                 {% if active_page == 'dashboard' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
@@ -43,7 +42,6 @@
         <span>Dashboard</span>
       </a>
 
-      <!-- Targets -->
       <a href="/targets"
          class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
                 {% if active_page == 'targets' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
@@ -54,7 +52,6 @@
         <span>Targets</span>
       </a>
 
-      <!-- Groups -->
       <a href="/groups"
          class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
                 {% if active_page == 'groups' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
@@ -65,7 +62,6 @@
         <span>Groups</span>
       </a>
 
-      <!-- Tags -->
       <a href="/tags"
          class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
                 {% if active_page == 'tags' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
@@ -76,7 +72,6 @@
         <span>Tags</span>
       </a>
 
-      <!-- Scan History -->
       <a href="/scans"
          class="flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors
                 {% if active_page == 'scans' %}bg-slate-700 text-white{% else %}text-slate-300 hover:bg-slate-700 hover:text-white{% endif %}">
@@ -88,7 +83,6 @@
       </a>
     </nav>
 
-    <!-- Footer -->
     <div class="px-6 py-4 border-t border-slate-700">
       <div class="text-slate-500 text-xs">Network Bot &copy; 2025</div>
     </div>
@@ -114,7 +108,6 @@
           </button>
         </div>
         <div class="px-6 py-4 space-y-4">
-          <!-- Progress bar -->
           <div>
             <div class="flex justify-between text-sm text-gray-600 mb-1">
               <span x-text="currentCheck || 'Initializing...'"></span>
@@ -125,7 +118,6 @@
                    :style="`width: ${total > 0 ? Math.round(done/total*100) : 0}%`"></div>
             </div>
           </div>
-          <!-- Findings feed -->
           <div class="h-48 overflow-y-auto border border-gray-200 rounded-lg p-3 space-y-1 bg-gray-50 text-sm font-mono"
                x-ref="feed">
             <template x-for="(msg, i) in feed" :key="i">
@@ -140,7 +132,6 @@
             </template>
             <div x-show="feed.length === 0" class="text-gray-400">Waiting for findings...</div>
           </div>
-          <!-- Severity summary (shown after complete) -->
           <div x-show="completed" class="grid grid-cols-5 gap-2 text-center">
             <div class="bg-red-50 rounded p-2">
               <div class="text-red-600 font-bold text-lg" x-text="counts.critical"></div>
@@ -236,7 +227,7 @@
           this.ws.onmessage = function(e) {
             const ev = JSON.parse(e.data);
             if (ev.type === 'progress') {
-              self.currentCheck = `${ev.target} → ${ev.check}`;
+              self.currentCheck = `${ev.target} \u2192 ${ev.check}`;
               self.done = ev.done;
               self.total = ev.total;
             } else if (ev.type === 'finding') {
