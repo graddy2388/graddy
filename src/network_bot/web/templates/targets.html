@@ -2,118 +2,146 @@
 {% block title %}Targets – Network Bot{% endblock %}
 
 {% block content %}
-<div class="p-8 space-y-6"
-  x-data="{
-    targets: {{ targets | tojson }},
-    groups: {{ groups | tojson }},
-    tags: {{ tags | tojson }},
-    checksList: {{ checks_list | tojson }},
-    filterText: '',
-    filterGroup: '',
-    filterTag: '',
-    showAdd: false,
-    editTarget: null,
+<script>
+  (function() {
+    var _targets   = {{ targets | tojson }};
+    var _groups    = {{ groups | tojson }};
+    var _tags      = {{ tags | tojson }};
+    var _checks    = {{ checks_list | tojson }};
 
-    form: {
-      name: '', host: '', group_id: '', checks: [], ports: '80,443',
-      smtp_ports: '25,587,465', enabled: 1, notes: '', tag_ids: []
-    },
+    window.targetsApp = function() {
+      return {
+        targets:     JSON.parse(JSON.stringify(_targets)),
+        groups:      JSON.parse(JSON.stringify(_groups)),
+        tags:        JSON.parse(JSON.stringify(_tags)),
+        checksList:  JSON.parse(JSON.stringify(_checks)),
+        filterText:  '',
+        filterGroup: '',
+        filterTag:   '',
+        showAdd:     false,
+        editTarget:  null,
+        form: {
+          name: '', host: '', group_id: '', checks: [], ports: '80,443',
+          smtp_ports: '25,587,465', enabled: 1, notes: '', tag_ids: []
+        },
 
-    get filtered() {
-      return this.targets.filter(t => {
-        const q = this.filterText.toLowerCase();
-        const matchText = !q || t.name.toLowerCase().includes(q) || t.host.toLowerCase().includes(q);
-        const matchGroup = !this.filterGroup || String(t.group_id) === String(this.filterGroup);
-        const matchTag = !this.filterTag || (t.tags && t.tags.some(tg => String(tg.id) === String(this.filterTag)));
-        return matchText && matchGroup && matchTag;
-      });
-    },
+        get filtered() {
+          return this.targets.filter(t => {
+            var q = this.filterText.toLowerCase();
+            var matchText  = !q || t.name.toLowerCase().includes(q) || t.host.toLowerCase().includes(q);
+            var matchGroup = !this.filterGroup || String(t.group_id) === String(this.filterGroup);
+            var matchTag   = !this.filterTag   || (t.tags && t.tags.some(tg => String(tg.id) === String(this.filterTag)));
+            return matchText && matchGroup && matchTag;
+          });
+        },
 
-    openAdd() {
-      this.form = {
-        name: '', host: '', group_id: '', checks: [...this.checksList],
-        ports: '80,443', smtp_ports: '25,587,465', enabled: 1, notes: '', tag_ids: []
+        openAdd() {
+          this.form = {
+            name: '', host: '', group_id: '',
+            checks: this.checksList.slice(),
+            ports: '80,443', smtp_ports: '25,587,465',
+            enabled: 1, notes: '', tag_ids: []
+          };
+          this.editTarget = null;
+          this.showAdd = true;
+        },
+
+        openEdit(t) {
+          var checks = t.checks;
+          if (typeof checks === 'string') { try { checks = JSON.parse(checks); } catch(e) { checks = []; } }
+          var ports = t.ports;
+          if (typeof ports === 'string') { try { ports = JSON.parse(ports).join(','); } catch(e) {} }
+          else if (Array.isArray(ports)) { ports = ports.join(','); }
+          var smtp = t.smtp_ports;
+          if (typeof smtp === 'string') { try { smtp = JSON.parse(smtp).join(','); } catch(e) {} }
+          else if (Array.isArray(smtp)) { smtp = smtp.join(','); }
+          this.form = {
+            name: t.name, host: t.host,
+            group_id: t.group_id != null ? t.group_id : '',
+            checks: checks || [],
+            ports: ports || '80,443',
+            smtp_ports: smtp || '25,587,465',
+            enabled: t.enabled, notes: t.notes || '',
+            tag_ids: (t.tags || []).map(function(tg){ return tg.id; })
+          };
+          this.editTarget = t;
+          this.showAdd = true;
+        },
+
+        toggleCheck(c) {
+          var idx = this.form.checks.indexOf(c);
+          if (idx >= 0) this.form.checks.splice(idx, 1);
+          else this.form.checks.push(c);
+        },
+
+        toggleTag(id) {
+          var idx = this.form.tag_ids.indexOf(id);
+          if (idx >= 0) this.form.tag_ids.splice(idx, 1);
+          else this.form.tag_ids.push(id);
+        },
+
+        parsePorts(s) {
+          return s.split(',').map(function(p){ return parseInt(p.trim()); }).filter(function(n){ return !isNaN(n); });
+        },
+
+        async saveTarget() {
+          var payload = {
+            name:       this.form.name,
+            host:       this.form.host,
+            group_id:   this.form.group_id ? parseInt(this.form.group_id) : null,
+            checks:     this.form.checks,
+            ports:      this.parsePorts(this.form.ports),
+            smtp_ports: this.parsePorts(this.form.smtp_ports),
+            enabled:    this.form.enabled,
+            notes:      this.form.notes,
+            tag_ids:    this.form.tag_ids,
+          };
+          var url    = this.editTarget ? '/api/targets/' + this.editTarget.id : '/api/targets';
+          var method = this.editTarget ? 'PUT' : 'POST';
+          var r = await fetch(url, {
+            method: method,
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+          });
+          if (r.ok) {
+            location.reload();
+          } else {
+            var err = await r.json();
+            alert(err.detail || 'Save failed');
+          }
+        },
+
+        async deleteTarget(id) {
+          if (!confirm('Delete this target?')) return;
+          await fetch('/api/targets/' + id, { method: 'DELETE' });
+          location.reload();
+        },
+
+        async toggleEnabled(t) {
+          await fetch('/api/targets/' + t.id, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ enabled: t.enabled ? 0 : 1 })
+          });
+          location.reload();
+        },
+
+        async resolveTarget(t) {
+          var r = await fetch('/api/targets/' + t.id + '/resolve', { method: 'POST' });
+          if (r.ok) location.reload();
+          else alert('Resolve failed');
+        }
       };
-      this.editTarget = null;
-      this.showAdd = true;
-    },
+    };
+  })();
+</script>
 
-    openEdit(t) {
-      let checks = t.checks;
-      if (typeof checks === 'string') { try { checks = JSON.parse(checks); } catch(e) { checks = []; } }
-      let ports = t.ports;
-      if (typeof ports === 'string') { try { ports = JSON.parse(ports).join(','); } catch(e) {} }
-      else if (Array.isArray(ports)) { ports = ports.join(','); }
-      let smtp_ports = t.smtp_ports;
-      if (typeof smtp_ports === 'string') { try { smtp_ports = JSON.parse(smtp_ports).join(','); } catch(e) {} }
-      else if (Array.isArray(smtp_ports)) { smtp_ports = smtp_ports.join(','); }
-      this.form = {
-        name: t.name, host: t.host, group_id: t.group_id || '',
-        checks: checks || [], ports: ports || '80,443',
-        smtp_ports: smtp_ports || '25,587,465',
-        enabled: t.enabled, notes: t.notes || '',
-        tag_ids: (t.tags || []).map(tg => tg.id)
-      };
-      this.editTarget = t;
-      this.showAdd = true;
-    },
-
-    toggleCheck(c) {
-      const idx = this.form.checks.indexOf(c);
-      if (idx >= 0) this.form.checks.splice(idx, 1);
-      else this.form.checks.push(c);
-    },
-
-    toggleTag(id) {
-      const idx = this.form.tag_ids.indexOf(id);
-      if (idx >= 0) this.form.tag_ids.splice(idx, 1);
-      else this.form.tag_ids.push(id);
-    },
-
-    parsePorts(s) {
-      return s.split(',').map(p => parseInt(p.trim())).filter(n => !isNaN(n));
-    },
-
-    async saveTarget() {
-      const payload = {
-        name: this.form.name, host: this.form.host,
-        group_id: this.form.group_id ? parseInt(this.form.group_id) : null,
-        checks: this.form.checks,
-        ports: this.parsePorts(this.form.ports),
-        smtp_ports: this.parsePorts(this.form.smtp_ports),
-        enabled: this.form.enabled, notes: this.form.notes, tag_ids: this.form.tag_ids,
-      };
-      const url = this.editTarget ? `/api/targets/${this.editTarget.id}` : '/api/targets';
-      const method = this.editTarget ? 'PUT' : 'POST';
-      const r = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
-      if (r.ok) { location.reload(); } else { const err = await r.json(); alert(err.detail || 'Save failed'); }
-    },
-
-    async deleteTarget(id) {
-      if (!confirm('Delete this target?')) return;
-      await fetch(`/api/targets/${id}`, { method: 'DELETE' });
-      location.reload();
-    },
-
-    async toggleEnabled(t) {
-      await fetch(`/api/targets/${t.id}`, {
-        method: 'PUT', headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ enabled: t.enabled ? 0 : 1 }),
-      });
-      location.reload();
-    },
-
-    async resolveTarget(t) {
-      const r = await fetch(`/api/targets/${t.id}/resolve`, { method: 'POST' });
-      if (r.ok) { location.reload(); } else { alert('Resolve failed'); }
-    },
-  }"
->
+<div class="p-8 space-y-6" x-data="targetsApp()">
 
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Targets</h1>
-      <p class="text-gray-500 text-sm mt-1" x-text="`${filtered.length} target(s)`"></p>
+      <p class="text-gray-500 text-sm mt-1" x-text="filtered.length + ' target(s)'"></p>
     </div>
     <button @click="openAdd()"
             class="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
@@ -124,18 +152,21 @@
     </button>
   </div>
 
+  <!-- Filters -->
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-wrap gap-3">
     <div class="flex-1 min-w-48">
       <input x-model="filterText" type="text" placeholder="Search by name or host..."
              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
     </div>
-    <select x-model="filterGroup" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+    <select x-model="filterGroup"
+            class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
       <option value="">All Groups</option>
       <template x-for="g in groups" :key="g.id">
         <option :value="g.id" x-text="g.name"></option>
       </template>
     </select>
-    <select x-model="filterTag" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+    <select x-model="filterTag"
+            class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
       <option value="">All Tags</option>
       <template x-for="t in tags" :key="t.id">
         <option :value="t.id" x-text="t.name"></option>
@@ -143,6 +174,7 @@
     </select>
   </div>
 
+  <!-- Table -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
     <table class="min-w-full divide-y divide-gray-200">
       <thead class="bg-gray-50">
@@ -174,23 +206,24 @@
             <td class="px-6 py-4">
               <template x-if="t.group_name">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
-                      :style="`background-color: ${t.group_color || '#6366f1'}`" x-text="t.group_name"></span>
+                      :style="'background-color:' + (t.group_color || '#6366f1')" x-text="t.group_name"></span>
               </template>
-              <template x-if="!t.group_name"><span class="text-gray-400 text-xs">—</span></template>
+              <template x-if="!t.group_name">
+                <span class="text-gray-400 text-xs">&mdash;</span>
+              </template>
             </td>
             <td class="px-6 py-4">
               <div class="flex flex-wrap gap-1">
                 <template x-for="tag in (t.tags || [])" :key="tag.id">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                        :style="`background-color: ${tag.color || '#10b981'}`" x-text="tag.name"></span>
+                        :style="'background-color:' + (tag.color || '#10b981')" x-text="tag.name"></span>
                 </template>
-                <span x-show="!t.tags || t.tags.length === 0" class="text-gray-400 text-xs">—</span>
+                <span x-show="!t.tags || t.tags.length === 0" class="text-gray-400 text-xs">&mdash;</span>
               </div>
             </td>
             <td class="px-6 py-4">
-              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                <span x-text="(() => { let c = t.checks; if (typeof c === 'string') { try { c = JSON.parse(c); } catch(e) { c = []; } } return Array.isArray(c) ? c.length : 0; })()"></span>&nbsp;checks
-              </span>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700"
+                    x-text="(function(){ var c=t.checks; if(typeof c==='string'){try{c=JSON.parse(c);}catch(e){c=[];}} return (Array.isArray(c)?c.length:0)+' checks'; })()"></span>
             </td>
             <td class="px-6 py-4">
               <button @click="toggleEnabled(t)"
@@ -202,7 +235,7 @@
             </td>
             <td class="px-6 py-4">
               <div class="flex items-center space-x-1">
-                <button @click="document.dispatchEvent(new CustomEvent('start-scan', { detail: { target_ids: [t.id] } }))"
+                <button @click="document.dispatchEvent(new CustomEvent('start-scan',{detail:{target_ids:[t.id]}}))"
                         class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Scan">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -210,19 +243,22 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </button>
-                <button @click="resolveTarget(t)" class="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg" title="Re-resolve hostname/IP">
+                <button @click="resolveTarget(t)"
+                        class="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg" title="Re-resolve hostname">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
                   </svg>
                 </button>
-                <button @click="openEdit(t)" class="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg" title="Edit">
+                <button @click="openEdit(t)"
+                        class="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg" title="Edit">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                   </svg>
                 </button>
-                <button @click="deleteTarget(t.id)" class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Delete">
+                <button @click="deleteTarget(t.id)"
+                        class="p-1.5 text-red-500 hover:bg-red-50 rounded-lg" title="Delete">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
@@ -232,16 +268,22 @@
             </td>
           </tr>
         </template>
-        <tr x-show="filtered.length === 0">
+        <tr x-show="targets.length === 0">
+          <td colspan="7" class="px-6 py-12 text-center text-gray-400 text-sm">
+            No targets yet. Click <strong>Add Target</strong> to get started.
+          </td>
+        </tr>
+        <tr x-show="targets.length > 0 && filtered.length === 0">
           <td colspan="7" class="px-6 py-10 text-center text-gray-400 text-sm">No targets match your filter.</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <!-- Add/Edit Modal -->
+  <!-- Add / Edit Modal -->
   <div x-show="showAdd" x-cloak
-       class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-transition>
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+       x-transition>
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
       <div class="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
         <h3 class="text-lg font-semibold text-gray-900" x-text="editTarget ? 'Edit Target' : 'Add Target'"></h3>
@@ -251,74 +293,105 @@
           </svg>
         </button>
       </div>
+
       <div class="px-6 py-4 space-y-4">
+        <!-- Name + Host -->
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-            <input x-model="form.name" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="My Server">
+            <input x-model="form.name" type="text"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                   placeholder="My Server">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Host *</label>
-            <input x-model="form.host" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="example.com or 192.168.1.1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Host / IP / CIDR *</label>
+            <input x-model="form.host" type="text"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                   placeholder="192.168.1.1 or host.example.com or 10.0.0.0/24">
           </div>
         </div>
+
+        <!-- Group -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Group</label>
-          <select x-model="form.group_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+          <select x-model="form.group_id"
+                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
             <option value="">No group</option>
             <template x-for="g in groups" :key="g.id">
               <option :value="g.id" x-text="g.name"></option>
             </template>
           </select>
         </div>
+
+        <!-- Tags -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Tags</label>
           <div class="flex flex-wrap gap-2">
             <template x-for="tag in tags" :key="tag.id">
               <label class="flex items-center space-x-1.5 cursor-pointer">
-                <input type="checkbox" :checked="form.tag_ids.includes(tag.id)" @change="toggleTag(tag.id)" class="rounded text-indigo-600">
+                <input type="checkbox" :checked="form.tag_ids.includes(tag.id)"
+                       @change="toggleTag(tag.id)" class="rounded text-indigo-600">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                      :style="`background-color: ${tag.color}`" x-text="tag.name"></span>
+                      :style="'background-color:' + tag.color" x-text="tag.name"></span>
               </label>
             </template>
-            <span x-show="tags.length === 0" class="text-gray-400 text-sm">No tags defined yet.</span>
+            <span x-show="tags.length === 0" class="text-gray-400 text-sm">No tags defined.</span>
           </div>
         </div>
+
+        <!-- Checks -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-2">Checks</label>
           <div class="flex flex-wrap gap-2">
             <template x-for="c in checksList" :key="c">
               <label class="flex items-center space-x-1.5 cursor-pointer">
-                <input type="checkbox" :checked="form.checks.includes(c)" @change="toggleCheck(c)" class="rounded text-indigo-600">
+                <input type="checkbox" :checked="form.checks.includes(c)"
+                       @change="toggleCheck(c)" class="rounded text-indigo-600">
                 <span class="text-sm text-gray-700" x-text="c"></span>
               </label>
             </template>
           </div>
         </div>
+
+        <!-- Ports -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Ports</label>
-            <input x-model="form.ports" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="80,443">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Ports (comma-separated)</label>
+            <input x-model="form.ports" type="text"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                   placeholder="80,443">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">SMTP Ports</label>
-            <input x-model="form.smtp_ports" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="25,587,465">
+            <input x-model="form.smtp_ports" type="text"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                   placeholder="25,587,465">
           </div>
         </div>
+
+        <!-- Notes -->
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-          <textarea x-model="form.notes" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
+          <textarea x-model="form.notes" rows="2"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                    placeholder="Optional notes..."></textarea>
         </div>
+
+        <!-- Enabled -->
         <div>
           <label class="flex items-center space-x-2 cursor-pointer">
-            <input type="checkbox" :checked="form.enabled === 1" @change="form.enabled = form.enabled ? 0 : 1" class="rounded text-indigo-600">
+            <input type="checkbox" :checked="form.enabled === 1"
+                   @change="form.enabled = form.enabled ? 0 : 1" class="rounded text-indigo-600">
             <span class="text-sm font-medium text-gray-700">Enabled</span>
           </label>
         </div>
       </div>
+
       <div class="px-6 py-4 border-t flex justify-end space-x-3">
-        <button @click="showAdd = false" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm">Cancel</button>
-        <button @click="saveTarget()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Save</button>
+        <button @click="showAdd = false"
+                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+        <button @click="saveTarget()"
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Save</button>
       </div>
     </div>
   </div>
@@ -326,8 +399,8 @@
 </div>
 
 <script>
-  document.addEventListener('start-scan', (e) => {
-    const el = document.querySelector('[x-data="scanProgress()"]');
+  document.addEventListener('start-scan', function(e) {
+    var el = document.querySelector('[x-data]');
     if (el && el._x_dataStack) el._x_dataStack[0].startScan(e.detail);
   });
 </script>
