@@ -56,6 +56,8 @@ CREATE TABLE IF NOT EXISTS target_tags (
     PRIMARY KEY (target_id, tag_id)
 );
 
+-- ── Scans ──────────────────────────────────────────────────────────────────
+
 CREATE TABLE IF NOT EXISTS scans (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     started_at TEXT NOT NULL,
@@ -69,7 +71,8 @@ CREATE TABLE IF NOT EXISTS scans (
     high_count INTEGER DEFAULT 0,
     medium_count INTEGER DEFAULT 0,
     low_count INTEGER DEFAULT 0,
-    info_count INTEGER DEFAULT 0
+    info_count INTEGER DEFAULT 0,
+    profile_id INTEGER REFERENCES scan_profiles(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS scan_results (
@@ -83,6 +86,108 @@ CREATE TABLE IF NOT EXISTS scan_results (
     metadata TEXT DEFAULT '{}',
     error TEXT,
     timestamp TEXT
+);
+
+-- ── Scan Profiles ──────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS scan_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    description TEXT DEFAULT '',
+    checks TEXT DEFAULT '["port_scan","ssl","http","dns","vuln","exposed_paths","cipher"]',
+    ports TEXT DEFAULT '[80,443,8080,8443,21,22,23,25,53,110,143,445,3306,3389,5432,6379,9200,27017]',
+    smtp_ports TEXT DEFAULT '[25,587,465]',
+    nmap_args TEXT DEFAULT '-sV -sC --top-ports 1000',
+    tools TEXT DEFAULT '["nmap"]',
+    intensity TEXT DEFAULT 'normal',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ── Persistent Schedules ───────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    enabled INTEGER DEFAULT 1,
+    cron_expr TEXT NOT NULL,
+    cron_human TEXT DEFAULT '',
+    target_filter TEXT DEFAULT 'all',
+    profile_id INTEGER REFERENCES scan_profiles(id) ON DELETE SET NULL,
+    last_run TEXT,
+    next_run TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ── Scope Ranges ───────────────────────────────────────────────────────────
+
+CREATE TABLE IF NOT EXISTS scope_ranges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cidr TEXT NOT NULL UNIQUE,
+    description TEXT DEFAULT '',
+    in_scope INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ── Host Inventory (discovered via subnet scan) ────────────────────────────
+
+CREATE TABLE IF NOT EXISTS host_inventory (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    ip_address TEXT NOT NULL UNIQUE,
+    hostname TEXT DEFAULT '',
+    mac_address TEXT DEFAULT '',
+    os_guess TEXT DEFAULT '',
+    first_seen TEXT DEFAULT (datetime('now')),
+    last_seen TEXT DEFAULT (datetime('now')),
+    is_alive INTEGER DEFAULT 1,
+    open_ports TEXT DEFAULT '[]',
+    services TEXT DEFAULT '{}',
+    notes TEXT DEFAULT ''
+);
+
+-- ── Host Services (detailed per-port service info) ─────────────────────────
+
+CREATE TABLE IF NOT EXISTS host_services (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    host_ip TEXT NOT NULL,
+    port INTEGER NOT NULL,
+    protocol TEXT DEFAULT 'tcp',
+    service_name TEXT DEFAULT '',
+    service_version TEXT DEFAULT '',
+    banner TEXT DEFAULT '',
+    last_updated TEXT DEFAULT (datetime('now')),
+    UNIQUE(host_ip, port, protocol)
+);
+
+-- ── Identities (users/accounts discovered on hosts) ───────────────────────
+
+CREATE TABLE IF NOT EXISTS host_identities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    host_ip TEXT NOT NULL,
+    identity_type TEXT NOT NULL,
+    username TEXT DEFAULT '',
+    domain TEXT DEFAULT '',
+    full_name TEXT DEFAULT '',
+    groups TEXT DEFAULT '[]',
+    is_active INTEGER DEFAULT 1,
+    is_admin INTEGER DEFAULT 0,
+    source TEXT DEFAULT '',
+    scan_id INTEGER REFERENCES scans(id) ON DELETE SET NULL,
+    discovered_at TEXT DEFAULT (datetime('now'))
+);
+
+-- ── AI Events (AI tool usage / exploitation detection) ────────────────────
+
+CREATE TABLE IF NOT EXISTS ai_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_host TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    tool_name TEXT DEFAULT '',
+    description TEXT DEFAULT '',
+    scan_id INTEGER REFERENCES scans(id) ON DELETE SET NULL,
+    severity TEXT DEFAULT 'info',
+    raw_evidence TEXT DEFAULT '',
+    detected_at TEXT DEFAULT (datetime('now'))
 );
 """
 
@@ -104,23 +209,119 @@ def get_db(db_path: str):
 
 
 def _migrate(conn) -> None:
-    """Add new columns to existing tables if they do not already exist."""
-    existing = {row[1] for row in conn.execute("PRAGMA table_info(targets)")}
+    """Safely add new columns / tables to existing databases without data loss."""
+    # targets columns
+    existing_targets = {row[1] for row in conn.execute("PRAGMA table_info(targets)")}
     for col, defn in [
         ("hostname", "TEXT DEFAULT ''"),
         ("last_resolved_ip", "TEXT DEFAULT ''"),
         ("last_resolved_at", "TEXT DEFAULT ''"),
     ]:
-        if col not in existing:
+        if col not in existing_targets:
             conn.execute(f"ALTER TABLE targets ADD COLUMN {col} {defn}")
-    conn.execute("""
+
+    # scans.profile_id column
+    existing_scans = {row[1] for row in conn.execute("PRAGMA table_info(scans)")}
+    if "profile_id" not in existing_scans:
+        conn.execute("ALTER TABLE scans ADD COLUMN profile_id INTEGER")
+
+    # Ensure all new tables exist (CREATE TABLE IF NOT EXISTS handles this)
+    conn.executescript("""
         CREATE TABLE IF NOT EXISTS host_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             target_id INTEGER REFERENCES targets(id) ON DELETE CASCADE,
             hostname TEXT DEFAULT '',
             ip_address TEXT DEFAULT '',
             resolved_at TEXT DEFAULT (datetime('now'))
-        )
+        );
+
+        CREATE TABLE IF NOT EXISTS scan_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT DEFAULT '',
+            checks TEXT DEFAULT '["port_scan","ssl","http","dns","vuln","exposed_paths","cipher"]',
+            ports TEXT DEFAULT '[80,443,8080,8443,21,22,23,25,53,110,143,445,3306,3389,5432,6379,9200,27017]',
+            smtp_ports TEXT DEFAULT '[25,587,465]',
+            nmap_args TEXT DEFAULT '-sV -sC --top-ports 1000',
+            tools TEXT DEFAULT '["nmap"]',
+            intensity TEXT DEFAULT 'normal',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS schedules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            enabled INTEGER DEFAULT 1,
+            cron_expr TEXT NOT NULL,
+            cron_human TEXT DEFAULT '',
+            target_filter TEXT DEFAULT 'all',
+            profile_id INTEGER REFERENCES scan_profiles(id) ON DELETE SET NULL,
+            last_run TEXT,
+            next_run TEXT,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS scope_ranges (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cidr TEXT NOT NULL UNIQUE,
+            description TEXT DEFAULT '',
+            in_scope INTEGER DEFAULT 1,
+            created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS host_inventory (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ip_address TEXT NOT NULL UNIQUE,
+            hostname TEXT DEFAULT '',
+            mac_address TEXT DEFAULT '',
+            os_guess TEXT DEFAULT '',
+            first_seen TEXT DEFAULT (datetime('now')),
+            last_seen TEXT DEFAULT (datetime('now')),
+            is_alive INTEGER DEFAULT 1,
+            open_ports TEXT DEFAULT '[]',
+            services TEXT DEFAULT '{}',
+            notes TEXT DEFAULT ''
+        );
+
+        CREATE TABLE IF NOT EXISTS host_services (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            host_ip TEXT NOT NULL,
+            port INTEGER NOT NULL,
+            protocol TEXT DEFAULT 'tcp',
+            service_name TEXT DEFAULT '',
+            service_version TEXT DEFAULT '',
+            banner TEXT DEFAULT '',
+            last_updated TEXT DEFAULT (datetime('now')),
+            UNIQUE(host_ip, port, protocol)
+        );
+
+        CREATE TABLE IF NOT EXISTS host_identities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            host_ip TEXT NOT NULL,
+            identity_type TEXT NOT NULL,
+            username TEXT DEFAULT '',
+            domain TEXT DEFAULT '',
+            full_name TEXT DEFAULT '',
+            groups TEXT DEFAULT '[]',
+            is_active INTEGER DEFAULT 1,
+            is_admin INTEGER DEFAULT 0,
+            source TEXT DEFAULT '',
+            scan_id INTEGER REFERENCES scans(id) ON DELETE SET NULL,
+            discovered_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS ai_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target_host TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            tool_name TEXT DEFAULT '',
+            description TEXT DEFAULT '',
+            scan_id INTEGER REFERENCES scans(id) ON DELETE SET NULL,
+            severity TEXT DEFAULT 'info',
+            raw_evidence TEXT DEFAULT '',
+            detected_at TEXT DEFAULT (datetime('now'))
+        );
     """)
     conn.commit()
 

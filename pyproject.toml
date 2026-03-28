@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "network-bot"
-version = "1.0.0"
-description = "Autonomous network security testing bot with web GUI"
+version = "2.0.0"
+description = "Jade – Comprehensive penetration testing & red team platform with web GUI"
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.31",
@@ -19,6 +19,13 @@ dependencies = [
     "uvicorn[standard]>=0.24",
     "python-multipart>=0.0.6",
     "aiofiles>=23.0",
+    "python-nmap>=0.7.1",
+    "APScheduler>=3.10",
+    "aiohttp>=3.9",
+    "ldap3>=2.9",
+    "reportlab>=4.0",
+    "Pillow>=10.0",
+    "python-crontab>=3.0",
 ]
 
 [project.scripts]

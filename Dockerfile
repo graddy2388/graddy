@@ -2,7 +2,47 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install dependencies first (cached layer)
+# ── System packages: nmap + common pen-test / recon tools ────────────────────
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nmap \
+    masscan \
+    nikto \
+    hydra \
+    sqlmap \
+    smbclient \
+    ldap-utils \
+    dnsutils \
+    netcat-openbsd \
+    curl \
+    unzip \
+    iputils-ping \
+    net-tools \
+    whois \
+    wget \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# ── enum4linux (Perl script, not in apt) ─────────────────────────────────────
+RUN wget -q https://github.com/CiscoCXSecurity/enum4linux/raw/master/enum4linux.pl \
+        -O /usr/local/bin/enum4linux \
+    && chmod +x /usr/local/bin/enum4linux \
+    && apt-get install -y --no-install-recommends perl libnet-ssleay-perl \
+    && rm -rf /var/lib/apt/lists/* \
+    || true
+
+# ── nuclei (ProjectDiscovery – binary release) ────────────────────────────────
+# Use TARGETARCH so multi-arch builds work; default to amd64
+ARG TARGETARCH=amd64
+RUN ARCH=${TARGETARCH} && \
+    NUCLEI_VER="3.3.4" && \
+    curl -sL "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VER}/nuclei_${NUCLEI_VER}_linux_${ARCH}.zip" \
+         -o /tmp/nuclei.zip && \
+    unzip -q /tmp/nuclei.zip nuclei -d /usr/local/bin/ && \
+    chmod +x /usr/local/bin/nuclei && \
+    rm /tmp/nuclei.zip \
+    || echo "nuclei install skipped (network/arch issue)"
+
+# ── Python application dependencies ──────────────────────────────────────────
 COPY pyproject.toml .
 RUN pip install --no-cache-dir \
     "requests>=2.31" \
@@ -15,14 +55,21 @@ RUN pip install --no-cache-dir \
     "fastapi>=0.104" \
     "uvicorn[standard]>=0.24" \
     "python-multipart>=0.0.6" \
-    "aiofiles>=23.0"
+    "aiofiles>=23.0" \
+    "python-nmap>=0.7.1" \
+    "APScheduler>=3.10" \
+    "aiohttp>=3.9" \
+    "ldap3>=2.9" \
+    "reportlab>=4.0" \
+    "Pillow>=10.0" \
+    "python-crontab>=3.0"
 
-# Install the package (registers the network-bot entry point)
+# ── Install the network-bot package ──────────────────────────────────────────
 COPY src/ src/
 COPY config/ config/
 RUN pip install --no-cache-dir --no-deps .
 
-RUN mkdir -p data logs reports
+RUN mkdir -p data logs reports nuclei-templates
 
 EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
