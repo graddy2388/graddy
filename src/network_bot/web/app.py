@@ -12,12 +12,14 @@ from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from .db.crud import get_scans, get_targets, get_groups, get_tags, get_scan, get_scan_results
+from .db.crud import (
+    get_scans, get_targets, get_groups, get_tags, get_scan, get_scan_results,
+    get_scan_profiles, get_schedules, get_scope_ranges,
+    get_host_inventory, get_host_services, get_host_identities,
+    get_ai_events,
+)
 from .db.schema import get_db
-
-
-# Global in-memory dict mapping scan_id → asyncio.Queue for WS progress
-active_scans: Dict[int, asyncio.Queue] = {}
+from . import active_scans  # shared dict in web/__init__.py
 
 
 def _make_db_dep(db_path: str):
@@ -45,7 +47,7 @@ def _tr(templates: Jinja2Templates, request: Request, name: str, ctx: dict):
 
 
 def create_app(config: Dict[str, Any]) -> FastAPI:
-    app = FastAPI(title="Network Bot", docs_url="/api/docs")
+    app = FastAPI(title="Jade – Penetration Testing Platform", docs_url="/api/docs")
 
     db_path = config.get("web", {}).get("db_path", "data/network_bot.db")
 
@@ -56,22 +58,43 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     # DB dependency
     get_db_dep = _make_db_dep(db_path)
 
-    # Register API routers
+    # ── Initialize DB and start scheduler ──────────────────────────────────
+    from .db.schema import init_db
+    init_db(db_path)
+
+    scheduler = None
+    try:
+        from .scheduler_service import get_scheduler, reload_all_schedules
+        scheduler = get_scheduler(db_path)
+        reload_all_schedules(scheduler, db_path, config)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("Scheduler not available: %s", exc)
+
+    # ── Register API routers ───────────────────────────────────────────────
     from .api.groups import make_router as groups_router
     from .api.tags import make_router as tags_router
     from .api.targets import make_router as targets_router
     from .api.scans import make_router as scans_router
     from .api.dashboard import make_router as dashboard_router
+    from .api.profiles import make_router as profiles_router
+    from .api.schedules import make_router as schedules_router
+    from .api.scope import make_router as scope_router
+    from .api.hosts import make_router as hosts_router
+    from .api.export import make_router as export_router
 
     app.include_router(groups_router(get_db_dep))
     app.include_router(tags_router(get_db_dep))
     app.include_router(targets_router(get_db_dep))
     app.include_router(scans_router(get_db_dep, config, db_path, active_scans))
     app.include_router(dashboard_router(get_db_dep))
+    app.include_router(profiles_router(get_db_dep))
+    app.include_router(schedules_router(get_db_dep, config, db_path, scheduler))
+    app.include_router(scope_router(get_db_dep))
+    app.include_router(hosts_router(get_db_dep))
+    app.include_router(export_router(get_db_dep))
 
-    # -------------------------------------------------------------------------
-    # Page routes
-    # -------------------------------------------------------------------------
+    # ── Page routes ────────────────────────────────────────────────────────
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
@@ -81,6 +104,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             groups = get_groups(db)
             tags = get_tags(db)
             last_scan = scans[0] if scans else None
+            ai_events = get_ai_events(db, limit=5)
 
         return _tr(templates, request, "dashboard.html", {
             "active_page": "dashboard",
@@ -90,6 +114,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "total_groups": len(groups),
             "total_tags": len(tags),
             "last_scan": last_scan,
+            "ai_events": ai_events,
         })
 
     @app.get("/targets", response_class=HTMLResponse)
@@ -104,7 +129,10 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "targets": targets,
             "groups": groups,
             "tags": tags,
-            "checks_list": ["port_scan", "ssl", "http", "dns", "vuln", "smtp", "exposed_paths", "cipher"],
+            "checks_list": [
+                "port_scan", "ssl", "http", "dns", "vuln",
+                "smtp", "exposed_paths", "cipher", "nmap", "subnet_scan",
+            ],
         })
 
     @app.get("/groups", response_class=HTMLResponse)
@@ -167,9 +195,108 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "unique_checks": unique_checks,
         })
 
-    # -------------------------------------------------------------------------
-    # WebSocket for live scan progress
-    # -------------------------------------------------------------------------
+    @app.get("/hosts", response_class=HTMLResponse)
+    async def hosts_page(request: Request):
+        with get_db(db_path) as db:
+            hosts = get_host_inventory(db)
+
+        return _tr(templates, request, "hosts.html", {
+            "active_page": "hosts",
+            "hosts": hosts,
+        })
+
+    @app.get("/hosts/{ip:path}", response_class=HTMLResponse)
+    async def host_detail(request: Request, ip: str):
+        with get_db(db_path) as db:
+            services = get_host_services(db, ip)
+            identities = get_host_identities(db, ip)
+            # Pull latest scan results for this host
+            cur = db.execute(
+                """
+                SELECT sr.*, s.started_at AS scan_started_at
+                FROM scan_results sr
+                JOIN scans s ON s.id = sr.scan_id
+                WHERE sr.target_host = ?
+                ORDER BY sr.scan_id DESC, sr.id DESC
+                LIMIT 100
+                """,
+                (ip,),
+            )
+            import json as _json
+            raw_results = []
+            for row in cur.fetchall():
+                r = dict(row)
+                for f in ("findings", "metadata"):
+                    if isinstance(r.get(f), str):
+                        try:
+                            r[f] = _json.loads(r[f])
+                        except Exception:
+                            r[f] = [] if f == "findings" else {}
+                raw_results.append(r)
+
+            # Host inventory record
+            inv = db.execute(
+                "SELECT * FROM host_inventory WHERE ip_address = ?", (ip,)
+            ).fetchone()
+            host_inv = dict(inv) if inv else {"ip_address": ip}
+
+        all_findings = []
+        for r in raw_results:
+            for f in r.get("findings") or []:
+                all_findings.append({
+                    **f,
+                    "check": r["check_name"],
+                    "scan_id": r["scan_id"],
+                    "scan_date": (r.get("scan_started_at") or "")[:10],
+                })
+
+        return _tr(templates, request, "host_detail.html", {
+            "active_page": "hosts",
+            "host": host_inv,
+            "ip": ip,
+            "services": services,
+            "identities": identities,
+            "findings": all_findings,
+            "results": raw_results,
+        })
+
+    @app.get("/profiles", response_class=HTMLResponse)
+    async def profiles_page(request: Request):
+        with get_db(db_path) as db:
+            profiles = get_scan_profiles(db)
+
+        return _tr(templates, request, "profiles.html", {
+            "active_page": "profiles",
+            "profiles": profiles,
+        })
+
+    @app.get("/schedules", response_class=HTMLResponse)
+    async def schedules_page(request: Request):
+        with get_db(db_path) as db:
+            schedules = get_schedules(db)
+            profiles = get_scan_profiles(db)
+            groups = get_groups(db)
+            tags = get_tags(db)
+
+        return _tr(templates, request, "schedules.html", {
+            "active_page": "schedules",
+            "schedules": schedules,
+            "profiles": profiles,
+            "groups": groups,
+            "tags": tags,
+        })
+
+    @app.get("/scope", response_class=HTMLResponse)
+    async def scope_page(request: Request):
+        with get_db(db_path) as db:
+            scope_ranges = get_scope_ranges(db)
+
+        return _tr(templates, request, "scope.html", {
+            "active_page": "scope",
+            "scope_ranges": scope_ranges,
+        })
+
+    # ── WebSocket for live scan progress ──────────────────────────────────
 
     @app.websocket("/ws/scan/{scan_id}")
     async def ws_scan_progress(websocket: WebSocket, scan_id: int):
