@@ -16,7 +16,6 @@ from typing import Any, Dict, List, Optional
 # ---------------------------------------------------------------------------
 
 def _row(row) -> Optional[Dict[str, Any]]:
-    """Convert a sqlite3.Row to a plain dict, or return None."""
     return dict(row) if row else None
 
 
@@ -107,7 +106,6 @@ def delete_tag(db, id: int) -> bool:
 # ---------------------------------------------------------------------------
 
 def _attach_tags(db, targets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Attach tags list to each target dict."""
     if not targets:
         return targets
     ids = [t["id"] for t in targets]
@@ -151,7 +149,6 @@ def get_targets(db, group_id=None, tag_id=None, enabled_only=False) -> List[Dict
         params.append(group_id)
     if enabled_only:
         conditions.append("t.enabled = 1")
-
     if tag_id is not None:
         conditions.append(
             "EXISTS (SELECT 1 FROM target_tags tt WHERE tt.target_id = t.id AND tt.tag_id = ?)"
@@ -224,7 +221,6 @@ def update_target(db, id: int, **fields) -> Optional[Dict[str, Any]]:
                "hostname", "last_resolved_ip", "last_resolved_at"}
     update_fields = {k: v for k, v in fields.items() if k in allowed}
 
-    # Serialize list fields to JSON
     for json_field in ("checks", "ports", "smtp_ports"):
         if json_field in update_fields and isinstance(update_fields[json_field], (list, tuple)):
             update_fields[json_field] = json.dumps(list(update_fields[json_field]))
@@ -420,12 +416,7 @@ def add_scan_result(
     db.commit()
 
 
-def add_host_history(
-    db,
-    target_id: int,
-    hostname: str,
-    ip_address: str,
-) -> None:
+def add_host_history(db, target_id: int, hostname: str, ip_address: str) -> None:
     db.execute(
         """
         INSERT INTO host_history (target_id, hostname, ip_address)
@@ -445,7 +436,6 @@ def get_host_history(db, target_id: int) -> List[Dict[str, Any]]:
 
 
 def get_dashboard_stats(db) -> dict:
-    """Return aggregated stats for the dashboard."""
     cur = db.execute(
         "SELECT id FROM scans WHERE status = 'completed' ORDER BY started_at DESC LIMIT 10"
     )
