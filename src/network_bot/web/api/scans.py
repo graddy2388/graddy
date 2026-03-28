@@ -17,6 +17,8 @@ from ..db.crud import (
     create_scan, finish_scan, fail_scan,
     get_scans, get_scan, get_scan_results,
     get_targets, add_scan_result,
+    get_scan_profile, upsert_host_inventory, upsert_host_service,
+    is_in_scope,
 )
 
 
@@ -24,6 +26,40 @@ class ScanIn(BaseModel):
     target_ids: Optional[List[int]] = None
     group_id: Optional[int] = None
     tag_id: Optional[int] = None
+    profile_id: Optional[int] = None
+    subnet: Optional[str] = None  # CIDR for subnet scanning
+
+
+# Default checks registry – new checks registered here
+_DEFAULT_CHECKS = [
+    "port_scan", "ssl", "http", "dns", "vuln", "smtp", "exposed_paths", "cipher"
+]
+
+
+def _load_check_registry():
+    from ....checks import PortScanCheck, SSLCheck, HTTPCheck, DNSCheck, VulnCheck, SMTPCheck, ExposedPathsCheck, CipherCheck
+    registry = {
+        "port_scan": PortScanCheck,
+        "ssl": SSLCheck,
+        "http": HTTPCheck,
+        "dns": DNSCheck,
+        "vuln": VulnCheck,
+        "smtp": SMTPCheck,
+        "exposed_paths": ExposedPathsCheck,
+        "cipher": CipherCheck,
+    }
+    # Attempt to load optional/tool-dependent checks
+    try:
+        from ....checks.nmap_scan import NmapScanCheck
+        registry["nmap"] = NmapScanCheck
+    except ImportError:
+        pass
+    try:
+        from ....checks.subnet_scan import SubnetScanCheck
+        registry["subnet_scan"] = SubnetScanCheck
+    except ImportError:
+        pass
+    return registry
 
 
 def run_checks_for_web(
@@ -34,20 +70,13 @@ def run_checks_for_web(
     progress_queue: asyncio.Queue,
     loop: asyncio.AbstractEventLoop,
 ) -> None:
-    from ....checks import PortScanCheck, SSLCheck, HTTPCheck, DNSCheck, VulnCheck, SMTPCheck, ExposedPathsCheck, CipherCheck
-    from ....checks.base import Severity
+    """
+    Run checks synchronously in a background thread, publishing progress events
+    to the asyncio queue via loop.call_soon_threadsafe.
+    """
     from ..db.schema import get_db
 
-    CHECK_REGISTRY = {
-        "port_scan": PortScanCheck,
-        "ssl": SSLCheck,
-        "http": HTTPCheck,
-        "dns": DNSCheck,
-        "vuln": VulnCheck,
-        "smtp": SMTPCheck,
-        "exposed_paths": ExposedPathsCheck,
-        "cipher": CipherCheck,
-    }
+    CHECK_REGISTRY = _load_check_registry()
 
     def _put(event: dict) -> None:
         loop.call_soon_threadsafe(progress_queue.put_nowait, event)
@@ -57,7 +86,13 @@ def run_checks_for_web(
     }
 
     total_checks = sum(
-        len(t.get("checks") if isinstance(t.get("checks"), list) else json.loads(t.get("checks", "[]")) if isinstance(t.get("checks"), str) else list(CHECK_REGISTRY.keys()))
+        len(
+            t.get("checks")
+            if isinstance(t.get("checks"), list)
+            else json.loads(t.get("checks", "[]"))
+            if isinstance(t.get("checks"), str)
+            else _DEFAULT_CHECKS
+        )
         for t in targets
     )
     done = 0
@@ -67,16 +102,40 @@ def run_checks_for_web(
             for target in targets:
                 host = target["host"]
                 name = target.get("name", host)
+
+                # Scope check
+                try:
+                    resolved_ip = target.get("last_resolved_ip") or host
+                    if not is_in_scope(db, resolved_ip):
+                        _put({
+                            "type": "progress",
+                            "target": host,
+                            "check": "scope_check",
+                            "done": done,
+                            "total": total_checks,
+                            "skipped": True,
+                            "reason": "out_of_scope",
+                        })
+                        done += len(
+                            target.get("checks") if isinstance(target.get("checks"), list)
+                            else json.loads(target.get("checks", "[]"))
+                            if isinstance(target.get("checks"), str)
+                            else _DEFAULT_CHECKS
+                        )
+                        continue
+                except Exception:
+                    pass  # allow if scope check fails
+
                 raw_checks = target.get("checks")
                 if isinstance(raw_checks, str):
                     try:
                         checks_to_run = json.loads(raw_checks)
                     except Exception:
-                        checks_to_run = list(CHECK_REGISTRY.keys())
+                        checks_to_run = _DEFAULT_CHECKS
                 elif isinstance(raw_checks, list):
                     checks_to_run = raw_checks
                 else:
-                    checks_to_run = list(CHECK_REGISTRY.keys())
+                    checks_to_run = _DEFAULT_CHECKS
 
                 for check_name in checks_to_run:
                     check_class = CHECK_REGISTRY.get(check_name)
@@ -136,6 +195,13 @@ def run_checks_for_web(
                         timestamp=result.timestamp,
                     )
 
+                    # Persist host inventory data from nmap/subnet scans
+                    if check_name in ("nmap", "subnet_scan") and result.metadata:
+                        try:
+                            _persist_host_data(db, host, result.metadata)
+                        except Exception:
+                            pass
+
                     done += 1
 
         with get_db(db_path) as db:
@@ -163,6 +229,51 @@ def run_checks_for_web(
         _put({"type": "error", "message": str(exc)})
 
 
+def _persist_host_data(db, host: str, metadata: Dict) -> None:
+    """Save host inventory data discovered via nmap/subnet scan to the DB."""
+    if "hosts" in metadata:
+        # Subnet scan – multiple hosts
+        for h in metadata["hosts"]:
+            upsert_host_inventory(
+                db,
+                ip_address=h["ip"],
+                hostname=h.get("hostname", ""),
+                mac_address=h.get("mac", ""),
+                os_guess=h.get("os_guess", ""),
+                open_ports=h.get("open_ports", []),
+                services=h.get("services", {}),
+            )
+            for port, svc in h.get("services", {}).items():
+                upsert_host_service(
+                    db,
+                    host_ip=h["ip"],
+                    port=int(port),
+                    service_name=svc.get("name", ""),
+                    service_version=f"{svc.get('product','')} {svc.get('version','')}".strip(),
+                    banner=svc.get("banner", ""),
+                )
+    elif "open_ports" in metadata:
+        # Single-host nmap scan
+        os_guesses = metadata.get("os_guesses", [])
+        os_guess = max(os_guesses, key=lambda x: x.get("accuracy", 0))["name"] if os_guesses else ""
+        upsert_host_inventory(
+            db,
+            ip_address=host,
+            os_guess=os_guess,
+            open_ports=metadata.get("open_ports", []),
+            services=metadata.get("services", {}),
+        )
+        for port, svc in metadata.get("services", {}).items():
+            upsert_host_service(
+                db,
+                host_ip=host,
+                port=int(port),
+                service_name=svc.get("name", ""),
+                service_version=f"{svc.get('product','')} {svc.get('version','')}".strip(),
+                banner=svc.get("banner", ""),
+            )
+
+
 def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: Dict[int, asyncio.Queue]) -> APIRouter:
     r = APIRouter(prefix="/api/scans", tags=["scans"])
 
@@ -180,7 +291,26 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
 
     @r.post("", status_code=201)
     def trigger_scan(body: ScanIn, db=Depends(get_db_dep)):
-        if body.target_ids:
+        # Load profile if specified
+        profile = None
+        if body.profile_id:
+            profile = get_scan_profile(db, body.profile_id)
+
+        # Subnet scan: create a synthetic target from the CIDR
+        if body.subnet:
+            import ipaddress
+            try:
+                ipaddress.ip_network(body.subnet, strict=False)
+            except ValueError:
+                raise HTTPException(status_code=400, detail=f"Invalid subnet CIDR: {body.subnet}")
+            targets = [{
+                "id": 0,
+                "name": f"Subnet {body.subnet}",
+                "host": body.subnet,
+                "checks": ["subnet_scan"],
+                "enabled": 1,
+            }]
+        elif body.target_ids:
             all_targets = get_targets(db)
             targets = [t for t in all_targets if t["id"] in body.target_ids]
         elif body.group_id is not None:
@@ -193,11 +323,22 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         if not targets:
             raise HTTPException(status_code=400, detail="No targets match the filter")
 
+        # Apply profile settings to targets if a profile was specified
+        if profile:
+            for t in targets:
+                if profile.get("checks"):
+                    t = dict(t)
+                    t["checks"] = profile["checks"]
+                    t["ports"] = profile.get("ports", t.get("ports", []))
+                    t["nmap_args"] = profile.get("nmap_args", "")
+                    targets[targets.index(t)] = t  # type: ignore[call-overload]
+
         scan = create_scan(
             db,
             triggered_by="web",
             filter_group=str(body.group_id) if body.group_id else None,
             filter_tag=str(body.tag_id) if body.tag_id else None,
+            profile_id=body.profile_id,
         )
         scan_id = scan["id"]
 
