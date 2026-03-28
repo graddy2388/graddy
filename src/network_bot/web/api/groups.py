@@ -21,27 +21,6 @@ class GroupIn(BaseModel):
     color: str = "#6366f1"
 
 
-def _get_db_dep(db_path: str):
-    """Returns a FastAPI dependency that yields a DB connection."""
-    import sqlite3
-    from contextlib import contextmanager
-
-    def dep():
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON")
-        try:
-            yield conn
-            conn.commit()
-        finally:
-            conn.close()
-
-    return dep
-
-
-# The actual dependency is injected at registration time via a closure.
-# We expose a factory used by app.py.
-
 def make_router(get_db_dep) -> APIRouter:
     r = APIRouter(prefix="/api/groups", tags=["groups"])
 
