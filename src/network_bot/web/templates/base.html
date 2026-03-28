@@ -377,7 +377,10 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload),
           })
-          .then(r => r.json())
+          .then(r => {
+            if (!r.ok) return r.text().then(t => { throw new Error(t.slice(0, 200)); });
+            return r.json();
+          })
           .then(data => {
             if (data.scan_id) {
               this.scanId = data.scan_id;

@@ -27,7 +27,11 @@ class ScanIn(BaseModel):
     group_id: Optional[int] = None
     tag_id: Optional[int] = None
     profile_id: Optional[int] = None
-    subnet: Optional[str] = None  # CIDR for subnet scanning
+    subnet: Optional[str] = None       # CIDR for subnet scanning
+    is_external: Optional[bool] = False
+    scan_name: Optional[str] = None
+
+    model_config = {"extra": "ignore"}   # ignore unknown fields (Pydantic v2 safe)
 
 
 # Default checks registry – new checks registered here
@@ -345,7 +349,7 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         scan_id = scan["id"]
 
         # Must be called from async context to get the running loop correctly
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         queue: asyncio.Queue = asyncio.Queue()
         active_scans[scan_id] = queue
 

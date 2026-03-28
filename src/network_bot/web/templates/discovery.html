@@ -2,53 +2,62 @@
 {% block title %}Host Discovery – Viridis{% endblock %}
 
 {% block content %}
-<div class="p-6 space-y-6">
+<div class="p-6 space-y-6" x-data="discoveryApp()">
+
+  <!-- Subnet Discovery Modal — backdrop closes on click-outside -->
+  <div x-show="showModal" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
+       @click.self="showModal = false">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-white">Discover Hosts on Subnet</h3>
+        <button @click="showModal = false" class="text-gray-500 hover:text-gray-300">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="space-y-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">CIDR Range</label>
+          <input x-model="cidr" type="text" placeholder="192.168.1.0/24"
+                 @keydown.enter="runDiscovery()"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Scan Type</label>
+          <select x-model="scanType"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+            <option value="internal">Internal (LAN)</option>
+            <option value="external">External (Internet-facing)</option>
+          </select>
+        </div>
+      </div>
+      <div class="flex justify-end space-x-3 mt-6">
+        <button @click="showModal = false"
+                class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">
+          Cancel
+        </button>
+        <button @click="runDiscovery()" :disabled="!cidr"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg text-sm font-medium transition-colors">
+          Run Discovery
+        </button>
+      </div>
+    </div>
+  </div>
 
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-xl font-bold text-white">Host Discovery</h1>
       <p class="text-sm text-gray-500 mt-0.5">Heartbeat baseline — find all live hosts on your network</p>
     </div>
-    <div class="flex space-x-3" x-data="discoveryApp()">
-      <button @click="openSubnetModal()"
-              class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-        </svg>
-        <span>Discover Subnet</span>
-      </button>
-
-      <!-- Subnet Modal -->
-      <div x-show="showModal" x-cloak
-           class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70">
-        <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
-          <h3 class="text-sm font-semibold text-white mb-4">Discover Hosts on Subnet</h3>
-          <div class="space-y-4">
-            <div>
-              <label class="block text-xs text-gray-400 mb-1.5">CIDR Range</label>
-              <input x-model="cidr" type="text" placeholder="192.168.1.0/24"
-                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
-            </div>
-            <div>
-              <label class="block text-xs text-gray-400 mb-1.5">Scan Type</label>
-              <select x-model="scanType"
-                      class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
-                <option value="internal">Internal (LAN)</option>
-                <option value="external">External (Internet-facing)</option>
-              </select>
-            </div>
-          </div>
-          <div class="flex justify-end space-x-3 mt-6">
-            <button @click="showModal = false"
-                    class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Cancel</button>
-            <button @click="runDiscovery()"
-                    class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
-              Run Discovery
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <button @click="showModal = true"
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <span>Discover Subnet</span>
+    </button>
   </div>
 
   <!-- Stats -->
@@ -125,11 +134,10 @@ function discoveryApp() {
     showModal: false,
     cidr: '',
     scanType: 'internal',
-    openSubnetModal() { this.showModal = true; },
     runDiscovery() {
-      if (!this.cidr) return;
+      if (!this.cidr.trim()) return;
       this.showModal = false;
-      window.startScan({ subnet: this.cidr, is_external: this.scanType === 'external' });
+      window.startScan({ subnet: this.cidr.trim(), is_external: this.scanType === 'external' });
     },
   };
 }
