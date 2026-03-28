@@ -93,11 +93,3 @@ web:
 | `alerting` | `enabled` | false | Master alerting switch |
 | `alerting` | `min_severity` | high | Minimum severity to alert on |
 | `web` | `secret_key` | *(change me)* | Session signing secret |
-
----
-
-## Related Pages
-
-- [Alerting](alerting.md)
-- [CLI Reference](cli.md)
-- [Deployment Guide](deployment.md)

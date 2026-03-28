@@ -67,11 +67,3 @@ Probes for `.env` (CRITICAL), `.git/HEAD` (CRITICAL), `wp-config.php` (CRITICAL)
 ## `cipher` — Cipher Suite Probing
 
 Tests for NULL (CRITICAL), EXPORT (CRITICAL), RC4 (CRITICAL), anonymous DH (CRITICAL), DES (HIGH), 3DES (HIGH), MD5 MAC (HIGH).
-
----
-
-## Related Pages
-
-- [Managing Targets](targets.md)
-- [Web GUI Guide](web-gui.md)
-- [Configuration](configuration.md)

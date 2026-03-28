@@ -54,11 +54,6 @@ docker compose cp network-bot:/app/data/network_bot.db ./backup-$(date +%Y%m%d).
 
 ## Reverse Proxy
 
-### Nginx Proxy Manager
-
-- Forward to container port `8080`
-- Enable **Websockets Support** (required for live scan progress)
-
 ### Nginx
 
 ```nginx
@@ -73,27 +68,8 @@ location / {
 
 ---
 
-## Port Conflicts
-
-Change the host-side port if 8088 is taken:
-
-```yaml
-ports:
-  - "9090:8080"
-```
-
----
-
 ## Security Tips
 
 - Set `web.secret_key` to a random string: `openssl rand -hex 32`
 - Restrict access with your reverse proxy (basic auth, SSO)
 - Run `docker compose pull && docker compose up -d` regularly for updates
-
----
-
-## Related Pages
-
-- [Installation](installation.md)
-- [Configuration](configuration.md)
-- [CLI Reference](cli.md)
