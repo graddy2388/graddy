@@ -14,7 +14,6 @@
     showAdd: false,
     editTarget: null,
 
-    // Add form
     form: {
       name: '', host: '', group_id: '', checks: [], ports: '80,443',
       smtp_ports: '25,587,465', enabled: 1, notes: '', tag_ids: []
@@ -41,26 +40,16 @@
 
     openEdit(t) {
       let checks = t.checks;
-      if (typeof checks === 'string') {
-        try { checks = JSON.parse(checks); } catch(e) { checks = []; }
-      }
+      if (typeof checks === 'string') { try { checks = JSON.parse(checks); } catch(e) { checks = []; } }
       let ports = t.ports;
-      if (typeof ports === 'string') {
-        try { ports = JSON.parse(ports).join(','); } catch(e) { ports = ports; }
-      } else if (Array.isArray(ports)) {
-        ports = ports.join(',');
-      }
+      if (typeof ports === 'string') { try { ports = JSON.parse(ports).join(','); } catch(e) {} }
+      else if (Array.isArray(ports)) { ports = ports.join(','); }
       let smtp_ports = t.smtp_ports;
-      if (typeof smtp_ports === 'string') {
-        try { smtp_ports = JSON.parse(smtp_ports).join(','); } catch(e) { smtp_ports = smtp_ports; }
-      } else if (Array.isArray(smtp_ports)) {
-        smtp_ports = smtp_ports.join(',');
-      }
+      if (typeof smtp_ports === 'string') { try { smtp_ports = JSON.parse(smtp_ports).join(','); } catch(e) {} }
+      else if (Array.isArray(smtp_ports)) { smtp_ports = smtp_ports.join(','); }
       this.form = {
-        name: t.name, host: t.host,
-        group_id: t.group_id || '',
-        checks: checks || [],
-        ports: ports || '80,443',
+        name: t.name, host: t.host, group_id: t.group_id || '',
+        checks: checks || [], ports: ports || '80,443',
         smtp_ports: smtp_ports || '25,587,465',
         enabled: t.enabled, notes: t.notes || '',
         tag_ids: (t.tags || []).map(tg => tg.id)
@@ -92,22 +81,12 @@
         checks: this.form.checks,
         ports: this.parsePorts(this.form.ports),
         smtp_ports: this.parsePorts(this.form.smtp_ports),
-        enabled: this.form.enabled,
-        notes: this.form.notes,
-        tag_ids: this.form.tag_ids,
+        enabled: this.form.enabled, notes: this.form.notes, tag_ids: this.form.tag_ids,
       };
       const url = this.editTarget ? `/api/targets/${this.editTarget.id}` : '/api/targets';
       const method = this.editTarget ? 'PUT' : 'POST';
-      const r = await fetch(url, {
-        method, headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(payload),
-      });
-      if (r.ok) {
-        location.reload();
-      } else {
-        const err = await r.json();
-        alert(err.detail || 'Save failed');
-      }
+      const r = await fetch(url, { method, headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) });
+      if (r.ok) { location.reload(); } else { const err = await r.json(); alert(err.detail || 'Save failed'); }
     },
 
     async deleteTarget(id) {
@@ -118,8 +97,7 @@
 
     async toggleEnabled(t) {
       await fetch(`/api/targets/${t.id}`, {
-        method: 'PUT',
-        headers: {'Content-Type': 'application/json'},
+        method: 'PUT', headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ enabled: t.enabled ? 0 : 1 }),
       });
       location.reload();
@@ -127,16 +105,11 @@
 
     async resolveTarget(t) {
       const r = await fetch(`/api/targets/${t.id}/resolve`, { method: 'POST' });
-      if (r.ok) {
-        location.reload();
-      } else {
-        alert('Resolve failed');
-      }
+      if (r.ok) { location.reload(); } else { alert('Resolve failed'); }
     },
   }"
 >
 
-  <!-- Header -->
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-2xl font-bold text-gray-900">Targets</h1>
@@ -151,21 +124,18 @@
     </button>
   </div>
 
-  <!-- Filters -->
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-4 flex flex-wrap gap-3">
     <div class="flex-1 min-w-48">
       <input x-model="filterText" type="text" placeholder="Search by name or host..."
-             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+             class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
     </div>
-    <select x-model="filterGroup"
-            class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+    <select x-model="filterGroup" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
       <option value="">All Groups</option>
       <template x-for="g in groups" :key="g.id">
         <option :value="g.id" x-text="g.name"></option>
       </template>
     </select>
-    <select x-model="filterTag"
-            class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+    <select x-model="filterTag" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
       <option value="">All Tags</option>
       <template x-for="t in tags" :key="t.id">
         <option :value="t.id" x-text="t.name"></option>
@@ -173,7 +143,6 @@
     </select>
   </div>
 
-  <!-- Table -->
   <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
     <table class="min-w-full divide-y divide-gray-200">
       <thead class="bg-gray-50">
@@ -194,10 +163,7 @@
             <td class="px-6 py-4 text-sm">
               <template x-if="t.hostname && t.hostname !== t.host">
                 <div>
-                  <span class="text-gray-900 font-medium"
-                        :title="t.last_resolved_at ? 'Resolved: ' + t.last_resolved_at : ''"
-                        x-text="t.hostname"></span>
-                  <br>
+                  <span class="text-gray-900 font-medium" x-text="t.hostname"></span><br>
                   <span class="text-gray-400 font-mono text-xs" x-text="'(' + t.host + ')'"></span>
                 </div>
               </template>
@@ -208,51 +174,43 @@
             <td class="px-6 py-4">
               <template x-if="t.group_name">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium text-white"
-                      :style="`background-color: ${t.group_color || '#6366f1'}`"
-                      x-text="t.group_name"></span>
+                      :style="`background-color: ${t.group_color || '#6366f1'}`" x-text="t.group_name"></span>
               </template>
-              <template x-if="!t.group_name">
-                <span class="text-gray-400 text-xs">—</span>
-              </template>
+              <template x-if="!t.group_name"><span class="text-gray-400 text-xs">—</span></template>
             </td>
             <td class="px-6 py-4">
               <div class="flex flex-wrap gap-1">
                 <template x-for="tag in (t.tags || [])" :key="tag.id">
                   <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                        :style="`background-color: ${tag.color || '#10b981'}`"
-                        x-text="tag.name"></span>
+                        :style="`background-color: ${tag.color || '#10b981'}`" x-text="tag.name"></span>
                 </template>
                 <span x-show="!t.tags || t.tags.length === 0" class="text-gray-400 text-xs">—</span>
               </div>
             </td>
             <td class="px-6 py-4">
               <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
-                <span x-text="(() => { let c = t.checks; if (typeof c === 'string') { try { c = JSON.parse(c); } catch(e) { c = []; } } return Array.isArray(c) ? c.length : 0; })()"></span>
-                <span>&nbsp;checks</span>
+                <span x-text="(() => { let c = t.checks; if (typeof c === 'string') { try { c = JSON.parse(c); } catch(e) { c = []; } } return Array.isArray(c) ? c.length : 0; })()"></span>&nbsp;checks
               </span>
             </td>
             <td class="px-6 py-4">
               <button @click="toggleEnabled(t)"
                       :class="t.enabled ? 'bg-indigo-600' : 'bg-gray-200'"
-                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none">
+                      class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors">
                 <span :class="t.enabled ? 'translate-x-6' : 'translate-x-1'"
                       class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow"></span>
               </button>
             </td>
             <td class="px-6 py-4">
               <div class="flex items-center space-x-1">
-                <button
-                  @click="document.dispatchEvent(new CustomEvent('start-scan', { detail: { target_ids: [t.id] } }))"
-                  class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Scan">
+                <button @click="document.dispatchEvent(new CustomEvent('start-scan', { detail: { target_ids: [t.id] } }))"
+                        class="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Scan">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
                 </button>
-                <button @click="resolveTarget(t)"
-                        class="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg" title="Re-resolve hostname/IP">
+                <button @click="resolveTarget(t)" class="p-1.5 text-teal-600 hover:bg-teal-50 rounded-lg" title="Re-resolve hostname/IP">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -283,8 +241,7 @@
 
   <!-- Add/Edit Modal -->
   <div x-show="showAdd" x-cloak
-       class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
-       x-transition>
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50" x-transition>
     <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
       <div class="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
         <h3 class="text-lg font-semibold text-gray-900" x-text="editTarget ? 'Edit Target' : 'Add Target'"></h3>
@@ -298,16 +255,16 @@
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-            <input x-model="form.name" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="My Server">
+            <input x-model="form.name" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="My Server">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Host *</label>
-            <input x-model="form.host" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="example.com or 192.168.1.1">
+            <input x-model="form.host" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="example.com or 192.168.1.1">
           </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Group</label>
-          <select x-model="form.group_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500">
+          <select x-model="form.group_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
             <option value="">No group</option>
             <template x-for="g in groups" :key="g.id">
               <option :value="g.id" x-text="g.name"></option>
@@ -319,8 +276,7 @@
           <div class="flex flex-wrap gap-2">
             <template x-for="tag in tags" :key="tag.id">
               <label class="flex items-center space-x-1.5 cursor-pointer">
-                <input type="checkbox" :checked="form.tag_ids.includes(tag.id)"
-                       @change="toggleTag(tag.id)" class="rounded text-indigo-600">
+                <input type="checkbox" :checked="form.tag_ids.includes(tag.id)" @change="toggleTag(tag.id)" class="rounded text-indigo-600">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
                       :style="`background-color: ${tag.color}`" x-text="tag.name"></span>
               </label>
@@ -333,8 +289,7 @@
           <div class="flex flex-wrap gap-2">
             <template x-for="c in checksList" :key="c">
               <label class="flex items-center space-x-1.5 cursor-pointer">
-                <input type="checkbox" :checked="form.checks.includes(c)"
-                       @change="toggleCheck(c)" class="rounded text-indigo-600">
+                <input type="checkbox" :checked="form.checks.includes(c)" @change="toggleCheck(c)" class="rounded text-indigo-600">
                 <span class="text-sm text-gray-700" x-text="c"></span>
               </label>
             </template>
@@ -342,32 +297,28 @@
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Ports (comma-separated)</label>
-            <input x-model="form.ports" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="80,443">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Ports</label>
+            <input x-model="form.ports" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="80,443">
           </div>
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">SMTP Ports</label>
-            <input x-model="form.smtp_ports" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="25,587,465">
+            <input x-model="form.smtp_ports" type="text" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="25,587,465">
           </div>
         </div>
         <div>
           <label class="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-          <textarea x-model="form.notes" rows="2"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500" placeholder="Optional notes..."></textarea>
+          <textarea x-model="form.notes" rows="2" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"></textarea>
         </div>
         <div>
           <label class="flex items-center space-x-2 cursor-pointer">
-            <input type="checkbox" :checked="form.enabled === 1"
-                   @change="form.enabled = form.enabled ? 0 : 1" class="rounded text-indigo-600">
+            <input type="checkbox" :checked="form.enabled === 1" @change="form.enabled = form.enabled ? 0 : 1" class="rounded text-indigo-600">
             <span class="text-sm font-medium text-gray-700">Enabled</span>
           </label>
         </div>
       </div>
       <div class="px-6 py-4 border-t flex justify-end space-x-3">
-        <button @click="showAdd = false"
-                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
-        <button @click="saveTarget()"
-                class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Save</button>
+        <button @click="showAdd = false" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm">Cancel</button>
+        <button @click="saveTarget()" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Save</button>
       </div>
     </div>
   </div>
@@ -377,9 +328,7 @@
 <script>
   document.addEventListener('start-scan', (e) => {
     const el = document.querySelector('[x-data="scanProgress()"]');
-    if (el && el._x_dataStack) {
-      el._x_dataStack[0].startScan(e.detail);
-    }
+    if (el && el._x_dataStack) el._x_dataStack[0].startScan(e.detail);
   });
 </script>
 {% endblock %}
