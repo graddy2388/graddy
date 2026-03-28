@@ -1,135 +1,228 @@
 {% extends "base.html" %}
-{% block title %}Dashboard – Network Bot{% endblock %}
+{% block title %}Dashboard – Viridis{% endblock %}
 
 {% block content %}
-<div class="p-8 space-y-6">
+<div class="p-6 space-y-6">
 
-  <!-- Stat Cards -->
-  <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-      <p class="text-sm text-gray-500">Targets</p>
-      <p class="text-3xl font-bold text-gray-900 mt-1">{{ total_targets }}</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-      <p class="text-sm text-gray-500">Groups</p>
-      <p class="text-3xl font-bold text-gray-900 mt-1">{{ total_groups }}</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-      <p class="text-sm text-gray-500">Tags</p>
-      <p class="text-3xl font-bold text-gray-900 mt-1">{{ total_tags }}</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-      <p class="text-sm text-gray-500">Last Scan</p>
-      <p class="text-sm font-semibold text-gray-900 mt-1">
-        {% if last_scan %}{{ last_scan.started_at[:10] }}{% else %}Never{% endif %}
-      </p>
-    </div>
-  </div>
-
-  {% if last_scan %}
-  <!-- Severity summary -->
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-    <h2 class="text-sm font-semibold text-gray-700 mb-3">Last Scan Severity</h2>
-    <div class="grid grid-cols-5 gap-3 text-center">
-      <div><p class="text-2xl font-bold text-red-600">{{ last_scan.critical_count or 0 }}</p><p class="text-xs text-gray-500">Critical</p></div>
-      <div><p class="text-2xl font-bold text-orange-500">{{ last_scan.high_count or 0 }}</p><p class="text-xs text-gray-500">High</p></div>
-      <div><p class="text-2xl font-bold text-yellow-600">{{ last_scan.medium_count or 0 }}</p><p class="text-xs text-gray-500">Medium</p></div>
-      <div><p class="text-2xl font-bold text-green-600">{{ last_scan.low_count or 0 }}</p><p class="text-xs text-gray-500">Low</p></div>
-      <div><p class="text-2xl font-bold text-blue-500">{{ last_scan.info_count or 0 }}</p><p class="text-xs text-gray-500">Info</p></div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Targets grid + Run Scan -->
+  <!-- Header -->
   <div class="flex items-center justify-between">
-    <h2 class="text-lg font-semibold text-gray-900">Targets</h2>
-    <button onclick="document.dispatchEvent(new CustomEvent('start-scan', { detail: {} }))"
-            class="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+    <div>
+      <h1 class="text-xl font-bold text-white">Dashboard</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Security posture overview</p>
+    </div>
+    <button onclick="window.startScan({})"
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-          d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
       </svg>
       <span>Run Scan</span>
     </button>
   </div>
 
-  {% if targets %}
-  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-    {% for t in targets %}
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 flex items-center justify-between">
-      <div>
-        <p class="font-medium text-gray-900 text-sm">{{ t.name }}</p>
-        <p class="text-xs text-gray-500 font-mono">{{ t.host }}</p>
-      </div>
-      <button onclick="document.dispatchEvent(new CustomEvent('start-scan', { detail: { target_ids: [{{ t.id }}] } }))"
-              class="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg" title="Scan this target">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-            d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-        </svg>
-      </button>
+  <!-- Stat Cards -->
+  <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Targets</p>
+      <p class="text-3xl font-bold text-white mt-1">{{ total_targets }}</p>
+      <a href="/targets" class="text-xs text-emerald-500 hover:text-emerald-400 mt-1 inline-block">Manage →</a>
     </div>
-    {% endfor %}
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Hosts Found</p>
+      <p class="text-3xl font-bold text-white mt-1">{{ total_hosts or 0 }}</p>
+      <a href="/hosts" class="text-xs text-emerald-500 hover:text-emerald-400 mt-1 inline-block">View all →</a>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Total Scans</p>
+      <p class="text-3xl font-bold text-white mt-1">{{ total_scans or 0 }}</p>
+      <a href="/scans" class="text-xs text-emerald-500 hover:text-emerald-400 mt-1 inline-block">History →</a>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <p class="text-xs text-gray-500 uppercase tracking-wider">Last Scan</p>
+      <p class="text-sm font-semibold text-white mt-1">
+        {% if last_scan %}{{ last_scan.started_at[:16].replace('T',' ') }}{% else %}Never{% endif %}
+      </p>
+      {% if last_scan %}
+      <a href="/scans/{{ last_scan.id }}" class="text-xs text-emerald-500 hover:text-emerald-400 mt-1 inline-block">View →</a>
+      {% endif %}
+    </div>
   </div>
-  {% else %}
-  <div class="bg-white rounded-xl border border-gray-200 p-12 text-center">
-    <p class="text-gray-400 text-sm">No targets yet. <a href="/targets" class="text-indigo-600 hover:underline">Add your first target</a>.</p>
+
+  <!-- Pen Test Coverage -->
+  <div>
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Coverage</h2>
+    <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
+
+      {% set areas = [
+        ('Host Discovery', 'discovery', 'Find all live hosts on the network', 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z'),
+        ('Port & Service Scan', 'port', 'Open ports, running services, banners', 'M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18'),
+        ('Web Application', 'web', 'HTTP/HTTPS, paths, headers, SSL', 'M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9'),
+        ('Authentication', 'auth', 'Credential exposure, weak auth', 'M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z'),
+        ('Network Security', 'network', 'Firewall, DNS, routing exposure', 'M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z'),
+        ('Vulnerability Assessment', 'vuln', 'CVEs, misconfigs, exposed services', 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'),
+      ] %}
+
+      {% for name, key, desc, icon_path in areas %}
+      {% set has_data = (last_scan and (last_scan.critical_count or last_scan.high_count or last_scan.medium_count)) if key in ('vuln','port','web') else (total_hosts and total_hosts > 0) if key == 'discovery' else false %}
+      <div class="bg-gray-900 border {{ 'border-emerald-800' if has_data else 'border-gray-800' }} rounded-xl p-4">
+        <div class="flex items-start justify-between">
+          <div class="flex items-center space-x-3">
+            <div class="w-8 h-8 {{ 'bg-emerald-900' if has_data else 'bg-gray-800' }} rounded-lg flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 {{ 'text-emerald-400' if has_data else 'text-gray-600' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="{{ icon_path }}"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-white">{{ name }}</p>
+              <p class="text-xs text-gray-500 mt-0.5">{{ desc }}</p>
+            </div>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full {{ 'bg-emerald-900 text-emerald-400' if has_data else 'bg-gray-800 text-gray-600' }}">
+            {{ 'Active' if has_data else 'Not run' }}
+          </span>
+        </div>
+      </div>
+      {% endfor %}
+
+    </div>
   </div>
-  {% endif %}
+
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Top Threats -->
+    <div>
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Top Threats</h2>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        {% if top_threats %}
+        <div class="divide-y divide-gray-800">
+          {% for t in top_threats %}
+          <div class="px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3 min-w-0">
+              <span class="w-2 h-2 rounded-full flex-shrink-0
+                {{ 'bg-red-500' if t.severity == 'critical' else 'bg-orange-500' if t.severity == 'high' else 'bg-yellow-500' if t.severity == 'medium' else 'bg-emerald-500' }}">
+              </span>
+              <div class="min-w-0">
+                <p class="text-sm text-white truncate">{{ t.title }}</p>
+                <p class="text-xs text-gray-500 font-mono truncate">{{ t.target_host }}</p>
+              </div>
+            </div>
+            <span class="text-xs font-medium ml-3 flex-shrink-0
+              {{ 'text-red-400' if t.severity == 'critical' else 'text-orange-400' if t.severity == 'high' else 'text-yellow-400' if t.severity == 'medium' else 'text-emerald-400' }}">
+              {{ t.severity|upper }}
+            </span>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-4 py-10 text-center">
+          <p class="text-gray-600 text-sm">No threats found yet. Run a scan to get started.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Worst Offenders -->
+    <div>
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Worst Offenders</h2>
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+        {% if worst_offenders %}
+        <div class="divide-y divide-gray-800">
+          {% for o in worst_offenders %}
+          <div class="px-4 py-3 flex items-center justify-between">
+            <div class="min-w-0">
+              <p class="text-sm text-white font-mono truncate">{{ o.host }}</p>
+              <p class="text-xs text-gray-500">{{ o.total }} findings</p>
+            </div>
+            <div class="flex items-center space-x-2 flex-shrink-0 ml-3">
+              {% if o.critical > 0 %}<span class="text-xs text-red-400 font-bold">{{ o.critical }}C</span>{% endif %}
+              {% if o.high > 0 %}<span class="text-xs text-orange-400 font-bold">{{ o.high }}H</span>{% endif %}
+              {% if o.medium > 0 %}<span class="text-xs text-yellow-400">{{ o.medium }}M</span>{% endif %}
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="px-4 py-10 text-center">
+          <p class="text-gray-600 text-sm">No data yet.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
 
   <!-- Recent Scans -->
-  {% if scans %}
   <div>
-    <h2 class="text-lg font-semibold text-gray-900 mb-3">Recent Scans</h2>
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
-      <table class="min-w-full divide-y divide-gray-200">
-        <thead class="bg-gray-50">
-          <tr>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">C</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">H</th>
-            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">M</th>
+    <div class="flex items-center justify-between mb-3">
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Recent Scans</h2>
+      <a href="/scans" class="text-xs text-emerald-500 hover:text-emerald-400">View all →</a>
+    </div>
+    {% if scans %}
+    <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+      <table class="min-w-full">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">#</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">C</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">H</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">M</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-gray-200">
+        <tbody class="divide-y divide-gray-800">
           {% for scan in scans %}
-          <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/scans/{{ scan.id }}'">
-            <td class="px-6 py-3 text-sm font-mono text-gray-900">#{{ scan.id }}</td>
-            <td class="px-6 py-3 text-sm text-gray-700">{{ scan.started_at[:16].replace('T',' ') }}</td>
-            <td class="px-6 py-3">
+          <tr class="hover:bg-gray-800 cursor-pointer transition-colors"
+              onclick="window.location='/scans/{{ scan.id }}'">
+            <td class="px-4 py-3 text-xs font-mono text-gray-400">#{{ scan.id }}</td>
+            <td class="px-4 py-3 text-xs text-gray-300">{{ scan.started_at[:16].replace('T',' ') }}</td>
+            <td class="px-4 py-3">
               {% if scan.status == 'completed' %}
-                <span class="px-2 py-0.5 rounded-full text-xs bg-green-100 text-green-800">Done</span>
+                <span class="px-2 py-0.5 rounded-full text-xs bg-emerald-900 text-emerald-400">Done</span>
               {% elif scan.status == 'running' %}
-                <span class="px-2 py-0.5 rounded-full text-xs bg-yellow-100 text-yellow-800 animate-pulse">Running</span>
+                <span class="px-2 py-0.5 rounded-full text-xs bg-yellow-900 text-yellow-400 animate-pulse">Running</span>
               {% else %}
-                <span class="px-2 py-0.5 rounded-full text-xs bg-red-100 text-red-800">Failed</span>
+                <span class="px-2 py-0.5 rounded-full text-xs bg-red-900 text-red-400">Failed</span>
               {% endif %}
             </td>
-            <td class="px-6 py-3 text-sm font-bold text-red-600">{{ scan.critical_count or 0 }}</td>
-            <td class="px-6 py-3 text-sm font-bold text-orange-500">{{ scan.high_count or 0 }}</td>
-            <td class="px-6 py-3 text-sm font-bold text-yellow-600">{{ scan.medium_count or 0 }}</td>
+            <td class="px-4 py-3 text-xs font-bold text-red-400">{{ scan.critical_count or 0 }}</td>
+            <td class="px-4 py-3 text-xs font-bold text-orange-400">{{ scan.high_count or 0 }}</td>
+            <td class="px-4 py-3 text-xs font-bold text-yellow-400">{{ scan.medium_count or 0 }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
+    {% else %}
+    <div class="bg-gray-900 border border-gray-800 rounded-xl px-4 py-12 text-center">
+      <p class="text-gray-600 text-sm">No scans yet. <button onclick="window.startScan({})" class="text-emerald-500 hover:text-emerald-400">Run your first scan</button>.</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Targets Quick Launch -->
+  {% if targets %}
+  <div>
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Quick Scan</h2>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+      {% for t in targets %}
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 flex items-center justify-between hover:border-gray-700 transition-colors">
+        <div class="min-w-0">
+          <p class="text-sm font-medium text-white truncate">{{ t.name }}</p>
+          <p class="text-xs text-gray-500 font-mono truncate">{{ t.host }}</p>
+        </div>
+        <button onclick="window.startScan({ target_ids: [{{ t.id }}] })"
+                class="ml-2 p-1.5 text-emerald-500 hover:bg-emerald-900 rounded-lg flex-shrink-0 transition-colors" title="Scan">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </button>
+      </div>
+      {% endfor %}
+    </div>
   </div>
   {% endif %}
 
 </div>
-
-<script>
-  document.addEventListener('start-scan', (e) => {
-    const el = document.querySelector('[x-data="scanProgress()"]');
-    if (el && el._x_dataStack) {
-      el._x_dataStack[0].startScan(e.detail);
-    }
-  });
-</script>
 {% endblock %}

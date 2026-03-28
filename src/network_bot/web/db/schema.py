@@ -220,10 +220,16 @@ def _migrate(conn) -> None:
         if col not in existing_targets:
             conn.execute(f"ALTER TABLE targets ADD COLUMN {col} {defn}")
 
-    # scans.profile_id column
+    # scans columns
     existing_scans = {row[1] for row in conn.execute("PRAGMA table_info(scans)")}
-    if "profile_id" not in existing_scans:
-        conn.execute("ALTER TABLE scans ADD COLUMN profile_id INTEGER")
+    for col, defn in [
+        ("profile_id",  "INTEGER"),
+        ("scan_type",   "TEXT DEFAULT 'general'"),
+        ("is_external", "INTEGER DEFAULT 0"),
+        ("scan_name",   "TEXT DEFAULT ''"),
+    ]:
+        if col not in existing_scans:
+            conn.execute(f"ALTER TABLE scans ADD COLUMN {col} {defn}")
 
     # Ensure all new tables exist (CREATE TABLE IF NOT EXISTS handles this)
     conn.executescript("""
@@ -326,11 +332,42 @@ def _migrate(conn) -> None:
     conn.commit()
 
 
+_DEFAULT_TAGS = [
+    # OS
+    ("windows",          "#3b82f6"),
+    ("linux",            "#f97316"),
+    ("macos",            "#8b5cf6"),
+    ("unix",             "#6366f1"),
+    # Device type
+    ("web-server",       "#06b6d4"),
+    ("database",         "#6366f1"),
+    ("domain-controller","#dc2626"),
+    ("firewall",         "#d97706"),
+    ("router",           "#0891b2"),
+    ("workstation",      "#4b5563"),
+    ("server",           "#059669"),
+    ("printer",          "#84cc16"),
+    ("iot",              "#ec4899"),
+    # Zone / classification
+    ("dmz",              "#f59e0b"),
+    ("internal",         "#10b981"),
+    ("external",         "#ef4444"),
+    ("critical",         "#dc2626"),
+]
+
+
 def init_db(db_path: str) -> None:
-    """Create all tables if they do not already exist."""
+    """Create all tables and seed default data if not already present."""
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.executescript(_SCHEMA_SQL)
     conn.commit()
     _migrate(conn)
+    # Seed default tags (skip if already exist)
+    for name, color in _DEFAULT_TAGS:
+        conn.execute(
+            "INSERT OR IGNORE INTO tags (name, color) VALUES (?, ?)",
+            (name, color),
+        )
+    conn.commit()
     conn.close()

@@ -18,6 +18,7 @@ from .db.crud import (
     get_host_inventory, get_host_services, get_host_identities,
     get_ai_events,
 )
+import json as _json
 from .db.schema import get_db
 from . import active_scans  # shared dict in web/__init__.py
 
@@ -47,7 +48,7 @@ def _tr(templates: Jinja2Templates, request: Request, name: str, ctx: dict):
 
 
 def create_app(config: Dict[str, Any]) -> FastAPI:
-    app = FastAPI(title="Jade – Penetration Testing Platform", docs_url="/api/docs")
+    app = FastAPI(title="Viridis – Security Platform", docs_url="/api/docs")
 
     db_path = config.get("web", {}).get("db_path", "data/network_bot.db")
 
@@ -103,8 +104,52 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             targets = get_targets(db)
             groups = get_groups(db)
             tags = get_tags(db)
+            hosts = get_host_inventory(db)
             last_scan = scans[0] if scans else None
-            ai_events = get_ai_events(db, limit=5)
+
+            # Top threats: most severe findings across recent scans
+            top_threats = []
+            worst_map: dict = {}
+            if scans:
+                recent_ids = [s["id"] for s in scans[:5]]
+                placeholders = ",".join("?" * len(recent_ids))
+                cur = db.execute(
+                    f"""
+                    SELECT sr.target_host, sr.findings
+                    FROM scan_results sr
+                    WHERE sr.scan_id IN ({placeholders})
+                      AND sr.findings != '[]' AND sr.findings IS NOT NULL
+                    ORDER BY sr.scan_id DESC
+                    LIMIT 200
+                    """,
+                    recent_ids,
+                )
+                for row in cur.fetchall():
+                    host = row["target_host"]
+                    try:
+                        findings = _json.loads(row["findings"]) if isinstance(row["findings"], str) else (row["findings"] or [])
+                    except Exception:
+                        findings = []
+                    for f in findings:
+                        sev = f.get("severity", "info")
+                        top_threats.append({
+                            "title": f.get("title", "Unknown"),
+                            "severity": sev,
+                            "target_host": host,
+                        })
+                        # Worst offenders aggregation
+                        if host not in worst_map:
+                            worst_map[host] = {"host": host, "total": 0, "critical": 0, "high": 0, "medium": 0}
+                        worst_map[host]["total"] += 1
+                        if sev in ("critical", "high", "medium"):
+                            worst_map[host][sev] += 1
+
+            # Sort threats by severity
+            SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+            top_threats.sort(key=lambda x: SEV_ORDER.get(x["severity"], 5))
+            top_threats = top_threats[:8]
+
+            worst_offenders = sorted(worst_map.values(), key=lambda x: (x["critical"] * 1000 + x["high"] * 100 + x["medium"]), reverse=True)[:6]
 
         return _tr(templates, request, "dashboard.html", {
             "active_page": "dashboard",
@@ -113,8 +158,11 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "total_targets": len(targets),
             "total_groups": len(groups),
             "total_tags": len(tags),
+            "total_hosts": len(hosts),
+            "total_scans": len(scans),
             "last_scan": last_scan,
-            "ai_events": ai_events,
+            "top_threats": top_threats,
+            "worst_offenders": worst_offenders,
         })
 
     @app.get("/targets", response_class=HTMLResponse)
@@ -152,9 +200,8 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         with get_db(db_path) as db:
             tags = get_tags(db)
 
-        return _tr(templates, request, "groups.html", {
+        return _tr(templates, request, "tags.html", {
             "active_page": "tags",
-            "groups": [],
             "tags": tags,
         })
 
@@ -294,6 +341,32 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         return _tr(templates, request, "scope.html", {
             "active_page": "scope",
             "scope_ranges": scope_ranges,
+        })
+
+    @app.get("/discovery", response_class=HTMLResponse)
+    async def discovery_page(request: Request):
+        with get_db(db_path) as db:
+            hosts = get_host_inventory(db)
+        return _tr(templates, request, "discovery.html", {
+            "active_page": "discovery",
+            "hosts": hosts,
+        })
+
+    @app.get("/logs", response_class=HTMLResponse)
+    async def logs_page(request: Request):
+        with get_db(db_path) as db:
+            all_scans = get_scans(db, limit=200)
+        return _tr(templates, request, "logs.html", {
+            "active_page": "logs",
+            "scans": all_scans,
+        })
+
+    @app.get("/tools", response_class=HTMLResponse)
+    @app.get("/tools/{tool}", response_class=HTMLResponse)
+    async def tools_page(request: Request, tool: str = "nmap"):
+        return _tr(templates, request, "tools.html", {
+            "active_page": f"tools_{tool}",
+            "active_tool": tool,
         })
 
     # ── WebSocket for live scan progress ──────────────────────────────────

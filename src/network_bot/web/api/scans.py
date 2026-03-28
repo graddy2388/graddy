@@ -290,7 +290,7 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         return {**scan, "results": results}
 
     @r.post("", status_code=201)
-    def trigger_scan(body: ScanIn, db=Depends(get_db_dep)):
+    async def trigger_scan(body: ScanIn, db=Depends(get_db_dep)):
         # Load profile if specified
         profile = None
         if body.profile_id:
@@ -325,13 +325,15 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
 
         # Apply profile settings to targets if a profile was specified
         if profile:
+            updated = []
             for t in targets:
                 if profile.get("checks"):
                     t = dict(t)
                     t["checks"] = profile["checks"]
                     t["ports"] = profile.get("ports", t.get("ports", []))
                     t["nmap_args"] = profile.get("nmap_args", "")
-                    targets[targets.index(t)] = t  # type: ignore[call-overload]
+                updated.append(t)
+            targets = updated
 
         scan = create_scan(
             db,
@@ -342,11 +344,8 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         )
         scan_id = scan["id"]
 
-        try:
-            loop = asyncio.get_event_loop()
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-
+        # Must be called from async context to get the running loop correctly
+        loop = asyncio.get_event_loop()
         queue: asyncio.Queue = asyncio.Queue()
         active_scans[scan_id] = queue
 

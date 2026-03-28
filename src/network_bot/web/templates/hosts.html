@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Host Inventory – Jade{% endblock %}
+{% block title %}Host Inventory – Viridis{% endblock %}
 
 {% block content %}
 <div class="p-8 space-y-6">
@@ -144,7 +144,7 @@
         if (!this.cidr) return;
         this.error = '';
         this.open = false;
-        document.dispatchEvent(new CustomEvent('start-scan', {
+        window.startScan(, {
           detail: { subnet: this.cidr }
         }));
       },
