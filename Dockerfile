@@ -6,13 +6,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     masscan \
-    nikto \
     hydra \
     smbclient \
     ldap-utils \
     dnsutils \
     netcat-openbsd \
     curl \
+    git \
     unzip \
     iputils-ping \
     net-tools \
@@ -21,6 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     perl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# nikto was removed from Debian Bookworm repos; install from GitHub
+RUN git clone --depth 1 https://github.com/sullo/nikto.git /opt/nikto \
+    && ln -s /opt/nikto/program/nikto.pl /usr/local/bin/nikto \
+    || echo "nikto install skipped"
 
 # sqlmap (install via pip to avoid repo issues)
 RUN pip install --no-cache-dir sqlmap || true
