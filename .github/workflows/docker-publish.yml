@@ -29,6 +29,14 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify Docker login
+        run: |
+          echo "Actor: ${{ github.actor }}"
+          echo "Registry: ${{ env.REGISTRY }}"
+          echo "Image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          docker info --format '{{.ServerVersion}}'
+          echo "Login verified"
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -38,12 +46,19 @@ jobs:
             type=sha
             type=raw,value=latest
 
-      - name: Build and push
+      - name: Build image (no push)
         uses: docker/build-push-action@v5
         with:
           context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: false
+          load: true
+          tags: jade-test:latest
           provenance: false
           sbom: false
+
+      - name: Push image
+        run: |
+          docker tag jade-test:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker tag jade-test:latest ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
