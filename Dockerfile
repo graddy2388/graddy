@@ -2,13 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# ── System packages: nmap + common pen-test / recon tools ────────────────────
+# System packages: nmap + pen-test / recon tools available in Debian repos
 RUN apt-get update && apt-get install -y --no-install-recommends \
     nmap \
     masscan \
     nikto \
     hydra \
-    sqlmap \
     smbclient \
     ldap-utils \
     dnsutils \
@@ -19,30 +18,32 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     net-tools \
     whois \
     wget \
+    perl \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# ── enum4linux (Perl script, not in apt) ─────────────────────────────────────
+# sqlmap (install via pip to avoid repo issues)
+RUN pip install --no-cache-dir sqlmap || true
+
+# enum4linux (Perl script from upstream)
 RUN wget -q https://github.com/CiscoCXSecurity/enum4linux/raw/master/enum4linux.pl \
         -O /usr/local/bin/enum4linux \
     && chmod +x /usr/local/bin/enum4linux \
-    && apt-get install -y --no-install-recommends perl libnet-ssleay-perl \
-    && rm -rf /var/lib/apt/lists/* \
-    || true
+    || echo "enum4linux install skipped"
 
-# ── nuclei (ProjectDiscovery – binary release) ────────────────────────────────
-# Use TARGETARCH so multi-arch builds work; default to amd64
+# nuclei binary from ProjectDiscovery
 ARG TARGETARCH=amd64
-RUN ARCH=${TARGETARCH} && \
-    NUCLEI_VER="3.3.4" && \
-    curl -sL "https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VER}/nuclei_${NUCLEI_VER}_linux_${ARCH}.zip" \
-         -o /tmp/nuclei.zip && \
-    unzip -q /tmp/nuclei.zip nuclei -d /usr/local/bin/ && \
-    chmod +x /usr/local/bin/nuclei && \
-    rm /tmp/nuclei.zip \
-    || echo "nuclei install skipped (network/arch issue)"
+RUN set -e; \
+    ARCH="${TARGETARCH}"; \
+    NUCLEI_VER="3.3.4"; \
+    URL="https://github.com/projectdiscovery/nuclei/releases/download/v${NUCLEI_VER}/nuclei_${NUCLEI_VER}_linux_${ARCH}.zip"; \
+    curl -sL "${URL}" -o /tmp/nuclei.zip \
+    && unzip -q /tmp/nuclei.zip nuclei -d /usr/local/bin/ \
+    && chmod +x /usr/local/bin/nuclei \
+    && rm /tmp/nuclei.zip \
+    || echo "nuclei install skipped (network or arch issue)"
 
-# ── Python application dependencies ──────────────────────────────────────────
+# Python application dependencies
 COPY pyproject.toml .
 RUN pip install --no-cache-dir \
     "requests>=2.31" \
@@ -64,7 +65,7 @@ RUN pip install --no-cache-dir \
     "Pillow>=10.0" \
     "python-crontab>=3.0"
 
-# ── Install the network-bot package ──────────────────────────────────────────
+# Install the network-bot package
 COPY src/ src/
 COPY config/ config/
 RUN pip install --no-cache-dir --no-deps .
