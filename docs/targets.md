@@ -71,11 +71,3 @@ When you add or edit a target, Network Bot automatically resolves:
 - **Hostname → IP** (forward DNS)
 
 The Targets page shows both. Click the teal refresh icon on any target row to re-resolve on demand.
-
----
-
-## Related Pages
-
-- [Groups & Tags](groups-and-tags.md)
-- [Security Checks Reference](checks.md)
-- [CLI Reference](cli.md)

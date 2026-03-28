@@ -8,12 +8,9 @@ The web GUI runs on port 8080 (8088 in the default Docker compose) and is access
 
 - **Stat cards** — Total Targets, Groups, Tags, Last Scan
 - **Last scan severity summary** — Critical / High / Medium / Low / Info counts
-- **Top Threats table** — aggregated findings from the last 10 scans, sorted by severity and frequency
-- **Most Vulnerable Targets** — score-based ranking (critical×10 + high×5)
-- **Finding Trend chart** — CSS stacked bar chart for the last 7 completed scans
-- **Recent Findings feed** — latest 15 findings, clickable to the relevant scan
+- **Recent scans table** — clickable rows linking to scan detail
 - **Quick targets grid** — per-target scan buttons
-- **Run New Scan modal** — scope by all targets, group, or tag
+- **Run Scan button** — triggers a scan of all enabled targets
 
 ---
 
@@ -46,9 +43,9 @@ Lists every scan with status, timestamps, and finding counts. Click any row to o
 - Header with metadata and Export JSON button
 - 5 severity count cards
 - Horizontal stacked severity distribution bar
-- **Filter bar** — filter by severity, target, check module, or keyword search
-- **Findings grouped by target** (collapsible) then by check module
-- Each finding shows severity badge, title, and expandable details (description, recommendation, technical details, CVE/CVSS)
+- **Filter bar** — filter by severity, target, check module
+- Findings table with expandable recommendation text
+- Passed checks shown with PASS badge
 
 ---
 
@@ -66,11 +63,3 @@ Triggered whenever you start a scan. Shows:
 ## API
 
 Swagger UI available at `/api/docs`.
-
----
-
-## Related Pages
-
-- [Managing Targets](targets.md)
-- [Groups & Tags](groups-and-tags.md)
-- [CLI Reference](cli.md)

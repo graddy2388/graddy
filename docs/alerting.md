@@ -62,15 +62,8 @@ alerting:
 ## Severity Threshold
 
 | `min_severity` | Alerts fire for |
-|----------------|-----------------|
+|----------------|---------------|
 | `critical` | CRITICAL only |
 | `high` | HIGH and CRITICAL |
 | `medium` | MEDIUM and above |
 | `low` | LOW and above |
-
----
-
-## Related Pages
-
-- [Configuration](configuration.md)
-- [Security Checks Reference](checks.md)

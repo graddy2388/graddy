@@ -61,11 +61,3 @@ network-bot scan --targets config/targets.yaml   # runs on schedule
 ## Scheduler Behaviour
 
 Without `--once`, the scanner runs immediately then repeats every `scheduler.interval_minutes` (default 60). Press Ctrl+C to stop.
-
----
-
-## Related Pages
-
-- [Configuration](configuration.md)
-- [Managing Targets](targets.md)
-- [Deployment Guide](deployment.md)

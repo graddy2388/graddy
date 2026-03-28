@@ -21,7 +21,7 @@ A **group** is a named collection of targets. Each target belongs to at most one
 
 ### Scanning an Entire Group
 
-Each group card has a **Scan Group** button. You can also scope a scan from the Dashboard's **Run New Scan** modal by selecting "By group".
+Each group card has a **Scan Group** button.
 
 ---
 
@@ -59,10 +59,3 @@ Internal
   ├── db01.internal      [database, critical]
   └── 10.10.0.0/24       [internal, network]
 ```
-
----
-
-## Related Pages
-
-- [Managing Targets](targets.md)
-- [Web GUI Guide](web-gui.md)
