@@ -113,7 +113,6 @@ def _migrate(conn) -> None:
     ]:
         if col not in existing:
             conn.execute(f"ALTER TABLE targets ADD COLUMN {col} {defn}")
-    # Ensure host_history table exists (for DBs created before this feature)
     conn.execute("""
         CREATE TABLE IF NOT EXISTS host_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

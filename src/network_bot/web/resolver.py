@@ -19,7 +19,6 @@ def resolve_host(host: str) -> dict:
         "resolved_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
-        # Check if it's already an IP
         ipaddress.ip_address(host)
         result["ip_address"] = host
         try:
@@ -27,7 +26,6 @@ def resolve_host(host: str) -> dict:
         except Exception:
             result["hostname"] = host
     except ValueError:
-        # It's a hostname
         result["hostname"] = host
         try:
             result["ip_address"] = socket.gethostbyname(host)
