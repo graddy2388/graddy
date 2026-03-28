@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+{% block title %}Scan Profiles – Jade{% endblock %}
+
+{% block content %}
+<script>
+(function() {
+  var _profiles = {{ profiles | tojson }};
+  window.profilesApp = function() {
+    return {
+      profiles: JSON.parse(JSON.stringify(_profiles)),
+      showModal: false,
+      editing: null,
+      form: {
+        name: '',
+        description: '',
+        checks: ['port_scan','ssl','http','dns','vuln','exposed_paths','cipher'],
+        ports: '80,443,8080,8443,21,22,23,25,53,110,143,445,3306,3389,5432,6379,9200,27017',
+        smtp_ports: '25,587,465',
+        nmap_args: '-sV -sC --top-ports 1000 -T4',
+        tools: ['nmap'],
+        intensity: 'normal',
+      },
+      allChecks: ['port_scan','ssl','http','dns','vuln','smtp','exposed_paths','cipher','nmap','subnet_scan'],
+      allTools: ['nmap','masscan','nikto','nuclei','sqlmap','hydra'],
+
+      openAdd() {
+        this.editing = null;
+        this.form = {
+          name:'', description:'',
+          checks: ['port_scan','ssl','http','dns','vuln','exposed_paths','cipher'],
+          ports: '80,443,8080,8443,21,22,23,25,53,110,143,445,3306,3389,5432,6379,9200,27017',
+          smtp_ports: '25,587,465',
+          nmap_args: '-sV -sC --top-ports 1000 -T4',
+          tools: ['nmap'],
+          intensity: 'normal',
+        };
+        this.showModal = true;
+      },
+
+      openEdit(p) {
+        this.editing = p.id;
+        this.form = {
+          name: p.name,
+          description: p.description || '',
+          checks: Array.isArray(p.checks) ? [...p.checks] : [],
+          ports: Array.isArray(p.ports) ? p.ports.join(',') : (p.ports || ''),
+          smtp_ports: Array.isArray(p.smtp_ports) ? p.smtp_ports.join(',') : (p.smtp_ports || ''),
+          nmap_args: p.nmap_args || '',
+          tools: Array.isArray(p.tools) ? [...p.tools] : [],
+          intensity: p.intensity || 'normal',
+        };
+        this.showModal = true;
+      },
+
+      toggleCheck(c) {
+        const idx = this.form.checks.indexOf(c);
+        if (idx >= 0) this.form.checks.splice(idx, 1);
+        else this.form.checks.push(c);
+      },
+
+      toggleTool(t) {
+        const idx = this.form.tools.indexOf(t);
+        if (idx >= 0) this.form.tools.splice(idx, 1);
+        else this.form.tools.push(t);
+      },
+
+      async saveProfile() {
+        const portsArr = this.form.ports.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+        const smtpArr = this.form.smtp_ports.split(',').map(p => parseInt(p.trim())).filter(p => !isNaN(p));
+        const payload = {
+          name: this.form.name,
+          description: this.form.description,
+          checks: this.form.checks,
+          ports: portsArr,
+          smtp_ports: smtpArr,
+          nmap_args: this.form.nmap_args,
+          tools: this.form.tools,
+          intensity: this.form.intensity,
+        };
+        const url = this.editing ? `/api/profiles/${this.editing}` : '/api/profiles';
+        const method = this.editing ? 'PUT' : 'POST';
+        const resp = await fetch(url, {
+          method,
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(payload),
+        });
+        if (resp.ok) {
+          const p = await resp.json();
+          if (this.editing) {
+            const idx = this.profiles.findIndex(x => x.id === this.editing);
+            if (idx >= 0) this.profiles[idx] = p;
+          } else {
+            this.profiles.push(p);
+          }
+          this.showModal = false;
+        } else {
+          const err = await resp.json();
+          alert(err.detail || 'Save failed');
+        }
+      },
+
+      async deleteProfile(id) {
+        if (!confirm('Delete this profile?')) return;
+        const resp = await fetch(`/api/profiles/${id}`, { method: 'DELETE' });
+        if (resp.ok) this.profiles = this.profiles.filter(p => p.id !== id);
+      },
+    };
+  };
+})();
+</script>
+
+<div class="p-8 space-y-6" x-data="profilesApp()">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Scan Profiles</h1>
+      <p class="text-gray-500 text-sm mt-1">Reusable scan templates with tool configs and check selection</p>
+    </div>
+    <button @click="openAdd()"
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      <span>New Profile</span>
+    </button>
+  </div>
+
+  <!-- Profile cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" x-show="profiles.length > 0">
+    <template x-for="p in profiles" :key="p.id">
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-3">
+        <div class="flex items-start justify-between">
+          <div>
+            <h3 class="font-semibold text-gray-900" x-text="p.name"></h3>
+            <p class="text-xs text-gray-500 mt-0.5" x-text="p.description || 'No description'"></p>
+          </div>
+          <span class="text-xs px-2 py-0.5 rounded-full"
+                :class="{
+                  'bg-red-100 text-red-700': p.intensity === 'aggressive',
+                  'bg-yellow-100 text-yellow-700': p.intensity === 'normal',
+                  'bg-green-100 text-green-700': p.intensity === 'stealth',
+                }"
+                x-text="p.intensity"></span>
+        </div>
+        <div class="flex flex-wrap gap-1">
+          <template x-for="c in (p.checks || [])" :key="c">
+            <span class="text-xs bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-mono" x-text="c"></span>
+          </template>
+        </div>
+        <div class="text-xs text-gray-500">
+          <span class="font-medium">nmap:</span>
+          <span class="font-mono" x-text="p.nmap_args || 'default'"></span>
+        </div>
+        <div class="flex space-x-2 pt-2 border-t border-gray-100">
+          <button @click="openEdit(p)"
+                  class="flex-1 text-center text-xs px-3 py-1.5 border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
+            Edit
+          </button>
+          <button @click="deleteProfile(p.id)"
+                  class="flex-1 text-center text-xs px-3 py-1.5 border border-red-200 text-red-600 rounded hover:bg-red-50">
+            Delete
+          </button>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <div x-show="profiles.length === 0"
+       class="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">
+    No profiles yet. Create one to use when running scans.
+  </div>
+
+  <!-- Modal -->
+  <div x-show="showModal" x-cloak
+       class="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50"
+       x-transition>
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
+      <div class="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
+        <h3 class="text-lg font-semibold text-gray-900" x-text="editing ? 'Edit Profile' : 'New Scan Profile'"></h3>
+        <button @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="px-6 py-4 space-y-4">
+        <div class="grid grid-cols-2 gap-4">
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Profile Name *</label>
+            <input x-model="form.name" type="text" placeholder="e.g. Full Pen Test, Quick Recon"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div class="col-span-2">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <input x-model="form.description" type="text"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Checks</label>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="c in allChecks" :key="c">
+              <button @click="toggleCheck(c)"
+                      :class="form.checks.includes(c) ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                      class="px-3 py-1.5 rounded-lg text-xs font-mono transition-colors"
+                      x-text="c"></button>
+            </template>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Additional Tools</label>
+          <div class="flex flex-wrap gap-2">
+            <template x-for="t in allTools" :key="t">
+              <button @click="toggleTool(t)"
+                      :class="form.tools.includes(t) ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                      class="px-3 py-1.5 rounded-lg text-xs font-mono transition-colors"
+                      x-text="t"></button>
+            </template>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Nmap Arguments</label>
+          <input x-model="form.nmap_args" type="text" placeholder="-sV -sC --top-ports 1000 -T4"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Ports (comma-separated)</label>
+            <input x-model="form.ports" type="text"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Intensity</label>
+            <select x-model="form.intensity"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+              <option value="stealth">Stealth (slow, quiet)</option>
+              <option value="normal">Normal</option>
+              <option value="aggressive">Aggressive (fast, noisy)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4 border-t flex justify-end space-x-3">
+        <button @click="showModal = false"
+                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+        <button @click="saveProfile()"
+                :disabled="!form.name"
+                class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50">
+          Save Profile
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

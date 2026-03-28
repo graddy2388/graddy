@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}Scope – Jade{% endblock %}
+
+{% block content %}
+<script>
+(function() {
+  var _ranges = {{ scope_ranges | tojson }};
+  window.scopeApp = function() {
+    return {
+      ranges: JSON.parse(JSON.stringify(_ranges)),
+      showModal: false,
+      checkIp: '',
+      checkResult: null,
+      form: { cidr: '', description: '', in_scope: true },
+
+      openAdd() {
+        this.form = { cidr:'', description:'', in_scope: true };
+        this.showModal = true;
+      },
+
+      async save() {
+        const resp = await fetch('/api/scope', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(this.form),
+        });
+        if (resp.ok) {
+          const r = await resp.json();
+          this.ranges.push(r);
+          this.showModal = false;
+        } else {
+          const err = await resp.json();
+          alert(err.detail || 'Save failed');
+        }
+      },
+
+      async deleteRange(id) {
+        if (!confirm('Remove this scope range?')) return;
+        const resp = await fetch(`/api/scope/${id}`, { method: 'DELETE' });
+        if (resp.ok) this.ranges = this.ranges.filter(r => r.id !== id);
+      },
+
+      async checkScope() {
+        if (!this.checkIp) return;
+        const resp = await fetch(`/api/scope/check?ip=${encodeURIComponent(this.checkIp)}`);
+        if (resp.ok) this.checkResult = await resp.json();
+      },
+    };
+  };
+})();
+</script>
+
+<div class="p-8 space-y-6" x-data="scopeApp()">
+
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-2xl font-bold text-gray-900">Scope</h1>
+      <p class="text-gray-500 text-sm mt-1">Define in-scope IP ranges to prevent scanning unauthorized hosts</p>
+    </div>
+    <button @click="openAdd()"
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      <span>Add Range</span>
+    </button>
+  </div>
+
+  <!-- Scope checker -->
+  <div class="bg-white rounded-xl border border-gray-200 p-5">
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">Scope Checker</h2>
+    <div class="flex space-x-3">
+      <input x-model="checkIp" type="text" placeholder="Enter IP address to check..."
+             @keydown.enter="checkScope()"
+             class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500">
+      <button @click="checkScope()"
+              class="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm hover:bg-gray-700">Check</button>
+    </div>
+    <div x-show="checkResult" class="mt-3">
+      <span x-show="checkResult && checkResult.in_scope"
+            class="inline-flex items-center space-x-2 text-green-700 font-medium text-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+        </svg>
+        <span x-text="checkResult && checkResult.ip"></span>
+        <span>is IN SCOPE</span>
+      </span>
+      <span x-show="checkResult && !checkResult.in_scope"
+            class="inline-flex items-center space-x-2 text-red-600 font-medium text-sm">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+        </svg>
+        <span x-text="checkResult && checkResult.ip"></span>
+        <span>is OUT OF SCOPE</span>
+      </span>
+    </div>
+  </div>
+
+  <!-- Scope table -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">CIDR</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Added</th>
+          <th class="px-6 py-3"></th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-200">
+        <template x-for="r in ranges" :key="r.id">
+          <tr class="hover:bg-gray-50">
+            <td class="px-6 py-4 font-mono text-sm font-medium text-gray-900" x-text="r.cidr"></td>
+            <td class="px-6 py-4">
+              <span x-show="r.in_scope"
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                In Scope
+              </span>
+              <span x-show="!r.in_scope"
+                    class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                Excluded
+              </span>
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-500" x-text="r.description || '—'"></td>
+            <td class="px-6 py-4 text-xs text-gray-400" x-text="(r.created_at||'').substring(0,10)"></td>
+            <td class="px-6 py-4">
+              <button @click="deleteRange(r.id)" class="text-xs text-red-500 hover:text-red-700">Remove</button>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="ranges.length === 0">
+          <td colspan="5" class="px-6 py-12 text-center text-gray-400 text-sm">
+            No scope ranges defined. Without scope rules, all targets are considered in scope.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-700">
+    <strong>How scope works:</strong> If any in-scope ranges are defined, only IPs within those ranges will be scanned.
+    Excluded ranges take priority and will be skipped even if they fall within an in-scope range.
+    Hostnames bypass scope checks (add the resolved IP to verify).
+  </div>
+
+  <!-- Modal -->
+  <div x-show="showModal" x-cloak
+       class="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50"
+       x-transition>
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="px-6 py-4 border-b flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-gray-900">Add Scope Range</h3>
+        <button @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="px-6 py-4 space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">CIDR Range *</label>
+          <input x-model="form.cidr" type="text" placeholder="e.g. 192.168.1.0/24 or 10.0.0.0/8"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+          <input x-model="form.description" type="text" placeholder="e.g. Production network"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Type</label>
+          <div class="flex space-x-4">
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="radio" x-model="form.in_scope" :value="true" class="text-emerald-600">
+              <span class="text-sm text-gray-700">In Scope</span>
+            </label>
+            <label class="flex items-center space-x-2 cursor-pointer">
+              <input type="radio" x-model="form.in_scope" :value="false" class="text-red-600">
+              <span class="text-sm text-gray-700">Excluded (never scan)</span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4 border-t flex justify-end space-x-3">
+        <button @click="showModal = false"
+                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+        <button @click="save()"
+                :disabled="!form.cidr"
+                class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50">
+          Add Range
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
