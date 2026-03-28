@@ -84,7 +84,6 @@ def make_router(get_db_dep) -> APIRouter:
             if body.tag_ids:
                 set_target_tags(db, target["id"], body.tag_ids)
                 target = get_target(db, target["id"])
-            # Record initial host_history entry
             add_host_history(
                 db, target["id"], resolved["hostname"], resolved["ip_address"]
             )
@@ -100,7 +99,6 @@ def make_router(get_db_dep) -> APIRouter:
 
         update_data = body.model_dump(exclude_none=True, exclude={"tag_ids"})
 
-        # If host field is being updated, re-resolve
         if "host" in update_data:
             resolved = resolve_host(update_data["host"])
             update_data["hostname"] = resolved["hostname"]

@@ -34,10 +34,6 @@ def run_checks_for_web(
     progress_queue: asyncio.Queue,
     loop: asyncio.AbstractEventLoop,
 ) -> None:
-    """
-    Run checks synchronously in a background thread, publishing progress events
-    to the asyncio queue via loop.call_soon_threadsafe.
-    """
     from ....checks import PortScanCheck, SSLCheck, HTTPCheck, DNSCheck, VulnCheck, SMTPCheck, ExposedPathsCheck, CipherCheck
     from ....checks.base import Severity
     from ..db.schema import get_db
@@ -108,7 +104,6 @@ def run_checks_for_web(
                             error=f"Unexpected error: {exc}",
                         )
 
-                    # Count severities and emit finding events
                     findings_list = []
                     for f in result.findings:
                         sev_val = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
@@ -185,20 +180,15 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
 
     @r.post("", status_code=201)
     def trigger_scan(body: ScanIn, db=Depends(get_db_dep)):
-        # Determine targets to scan
         if body.target_ids:
             all_targets = get_targets(db)
             targets = [t for t in all_targets if t["id"] in body.target_ids]
-            filter_label = f"targets:{','.join(str(i) for i in body.target_ids)}"
         elif body.group_id is not None:
             targets = get_targets(db, group_id=body.group_id)
-            filter_label = f"group:{body.group_id}"
         elif body.tag_id is not None:
             targets = get_targets(db, tag_id=body.tag_id)
-            filter_label = f"tag:{body.tag_id}"
         else:
             targets = get_targets(db, enabled_only=True)
-            filter_label = None
 
         if not targets:
             raise HTTPException(status_code=400, detail="No targets match the filter")
@@ -211,7 +201,6 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         )
         scan_id = scan["id"]
 
-        # Set up asyncio queue for WS progress
         try:
             loop = asyncio.get_event_loop()
         except RuntimeError:
@@ -222,7 +211,6 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
 
         def _run():
             run_checks_for_web(targets, config, db_path, scan_id, queue, loop)
-            # Remove from active scans after a brief delay to allow last messages to drain
             import time
             time.sleep(2)
             active_scans.pop(scan_id, None)
