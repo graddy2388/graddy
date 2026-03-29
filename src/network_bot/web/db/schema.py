@@ -369,5 +369,10 @@ def init_db(db_path: str) -> None:
             "INSERT OR IGNORE INTO tags (name, color) VALUES (?, ?)",
             (name, color),
         )
+    # Seed default "General" group — all new targets start here
+    conn.execute(
+        "INSERT OR IGNORE INTO groups (name, description, color) VALUES (?, ?, ?)",
+        ("General", "Default group for all targets", "#4b5563"),
+    )
     conn.commit()
     conn.close()

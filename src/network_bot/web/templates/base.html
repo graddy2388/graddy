@@ -8,37 +8,32 @@
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
-    .nav-child { padding-left: 2.25rem; }
-    .caret { transition: transform 0.2s ease; }
+    .caret { transition: transform 0.18s ease; }
     .caret.open { transform: rotate(90deg); }
+    .nav-child { padding-left: 2rem; }
   </style>
 </head>
-<body class="h-full flex bg-gray-950">
+<body class="h-full flex bg-gray-950 text-white">
 
   <!-- Sidebar -->
-  <aside class="w-60 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col min-h-screen"
+  <aside class="w-56 flex-shrink-0 bg-gray-900 border-r border-gray-800 flex flex-col min-h-screen"
          x-data="sidebarNav()">
 
     <!-- Logo -->
-    <div class="px-5 py-4 border-b border-gray-800">
-      <div class="flex items-center space-x-3">
-        <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center shadow-lg flex-shrink-0">
-          <span class="text-white font-black text-sm">V</span>
-        </div>
-        <div>
-          <div class="text-white font-bold text-sm tracking-wide">Viridis</div>
-          <div class="text-gray-500 text-xs">Security Platform</div>
-        </div>
+    <div class="px-4 py-4 border-b border-gray-800 flex items-center space-x-2.5">
+      <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
+        <span class="text-white font-black text-sm">V</span>
+      </div>
+      <div>
+        <div class="text-white font-bold text-sm">Viridis</div>
+        <div class="text-gray-500 text-xs">Security Platform</div>
       </div>
     </div>
 
-    <!-- Navigation -->
-    <nav class="flex-1 px-2 py-3 overflow-y-auto space-y-0.5">
+    <nav class="flex-1 px-2 py-3 overflow-y-auto space-y-0.5 text-sm">
 
       <!-- Dashboard -->
-      <a href="/"
-         class="flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full
-                {{ 'bg-emerald-600 text-white' if active_page == 'dashboard' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
+      <a href="/" class="nav-top {{ 'active' if active_page == 'dashboard' else '' }}">
         <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
             d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
@@ -46,185 +41,93 @@
         <span>Dashboard</span>
       </a>
 
-      <!-- ── SCANNING ─────────────────────────── -->
-      <div class="pt-1">
-        <button @click="toggle('scanning')"
-                class="flex items-center justify-between w-full px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors">
-          <span>Scanning</span>
-          <svg class="w-3 h-3 caret" :class="open.scanning ? 'open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-        <div x-show="open.scanning" x-collapse>
-          <a href="/discovery"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'discovery' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-            </svg>
-            <span>Host Discovery</span>
-          </a>
-          <a href="/scans"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'scans' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
-            </svg>
-            <span>Scan History</span>
-          </a>
-          <a href="/targets"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'targets' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
-            </svg>
-            <span>Targets</span>
-          </a>
-          <a href="/profiles"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'profiles' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/>
-            </svg>
-            <span>Scan Profiles</span>
-          </a>
-        </div>
+      <!-- ── SCANNING ────────────────────────────────── -->
+      <button @click="toggle('scanning')" class="nav-section">
+        <span>Scanning</span>
+        <svg class="w-3 h-3 caret flex-shrink-0" :class="open.scanning?'open':''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <div x-show="open.scanning" x-collapse class="space-y-0.5">
+        <a href="/targets"       class="nav-child {{ 'active' if active_page == 'targets' else '' }}">Targets</a>
+        <a href="/discovery"     class="nav-child {{ 'active' if active_page == 'discovery' else '' }}">Host Discovery</a>
+        <a href="/profiles"      class="nav-child {{ 'active' if active_page == 'profiles' else '' }}">Scan Profiles</a>
+        <a href="/scans"         class="nav-child {{ 'active' if active_page == 'scans' else '' }}">History</a>
       </div>
 
-      <!-- ── SCHEDULES ────────────────────────── -->
-      <div class="pt-1">
-        <button @click="toggle('schedules')"
-                class="flex items-center justify-between w-full px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors">
-          <span>Schedules</span>
-          <svg class="w-3 h-3 caret" :class="open.schedules ? 'open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-        <div x-show="open.schedules" x-collapse>
-          <a href="/schedules"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'schedules' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-            </svg>
-            <span>All Schedules</span>
-          </a>
-        </div>
+      <!-- ── INVENTORY ───────────────────────────────── -->
+      <button @click="toggle('inventory')" class="nav-section">
+        <span>Inventory</span>
+        <svg class="w-3 h-3 caret flex-shrink-0" :class="open.inventory?'open':''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <div x-show="open.inventory" x-collapse class="space-y-0.5">
+        <a href="/hosts"      class="nav-child {{ 'active' if active_page == 'hosts' else '' }}">All Assets</a>
+        <a href="/topology"   class="nav-child {{ 'active' if active_page == 'topology' else '' }}">Topology</a>
+        <a href="/scope"      class="nav-child {{ 'active' if active_page == 'scope' else '' }}">Scope</a>
       </div>
 
-      <!-- ── TAGS ────────────────────────────── -->
-      <div class="pt-1">
-        <button @click="toggle('tags')"
-                class="flex items-center justify-between w-full px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors">
-          <span>Tags</span>
-          <svg class="w-3 h-3 caret" :class="open.tags ? 'open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-        <div x-show="open.tags" x-collapse>
-          <a href="/tags"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'tags' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
-            </svg>
-            <span>Manage Tags</span>
-          </a>
-          <a href="/groups"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'groups' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
-            </svg>
-            <span>Groups</span>
-          </a>
-        </div>
+      <!-- ── TOOLS ──────────────────────────────────── -->
+      <button @click="toggle('tools')" class="nav-section">
+        <span>Tools</span>
+        <svg class="w-3 h-3 caret flex-shrink-0" :class="open.tools?'open':''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <div x-show="open.tools" x-collapse class="space-y-0.5">
+        <div class="nav-subheader">Recon</div>
+        <a href="/tools/nmap"     class="nav-child {{ 'active' if active_page == 'tools_nmap' else '' }}">nmap</a>
+        <a href="/tools/masscan"  class="nav-child {{ 'active' if active_page == 'tools_masscan' else '' }}">masscan</a>
+        <a href="/tools/enum4linux" class="nav-child {{ 'active' if active_page == 'tools_enum4linux' else '' }}">enum4linux</a>
+        <div class="nav-subheader">Web</div>
+        <a href="/tools/nikto"    class="nav-child {{ 'active' if active_page == 'tools_nikto' else '' }}">nikto</a>
+        <a href="/tools/sqlmap"   class="nav-child {{ 'active' if active_page == 'tools_sqlmap' else '' }}">sqlmap</a>
+        <a href="/tools/gobuster" class="nav-child {{ 'active' if active_page == 'tools_gobuster' else '' }}">gobuster</a>
+        <div class="nav-subheader">Auth</div>
+        <a href="/tools/hydra"    class="nav-child {{ 'active' if active_page == 'tools_hydra' else '' }}">hydra</a>
+        <div class="nav-subheader">Vuln</div>
+        <a href="/tools/nuclei"   class="nav-child {{ 'active' if active_page == 'tools_nuclei' else '' }}">nuclei</a>
       </div>
 
-      <!-- ── TOOLS ────────────────────────────── -->
-      <div class="pt-1">
-        <button @click="toggle('tools')"
-                class="flex items-center justify-between w-full px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors">
-          <span>Tools</span>
-          <svg class="w-3 h-3 caret" :class="open.tools ? 'open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-        <div x-show="open.tools" x-collapse>
-          <a href="/tools/nmap"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'tools_nmap' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
-            </svg>
-            <span>nmap</span>
-          </a>
-          <a href="/tools/web"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'tools_web' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9"/>
-            </svg>
-            <span>Web Scanner</span>
-          </a>
-          <a href="/tools/masscan"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'tools_masscan' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
-            </svg>
-            <span>Mass Scan</span>
-          </a>
-        </div>
+      <!-- ── SCHEDULES ──────────────────────────────── -->
+      <button @click="toggle('schedules')" class="nav-section">
+        <span>Schedules</span>
+        <svg class="w-3 h-3 caret flex-shrink-0" :class="open.schedules?'open':''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <div x-show="open.schedules" x-collapse class="space-y-0.5">
+        <a href="/schedules" class="nav-child {{ 'active' if active_page == 'schedules' else '' }}">All Schedules</a>
       </div>
 
-      <!-- ── REPORTING ────────────────────────── -->
-      <div class="pt-1">
-        <button @click="toggle('reporting')"
-                class="flex items-center justify-between w-full px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider text-gray-500 hover:text-gray-300 hover:bg-gray-800 transition-colors">
-          <span>Reporting</span>
-          <svg class="w-3 h-3 caret" :class="open.reporting ? 'open' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
-          </svg>
-        </button>
-        <div x-show="open.reporting" x-collapse>
-          <a href="/hosts"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'hosts' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/>
-            </svg>
-            <span>Host Inventory</span>
-          </a>
-          <a href="/scope"
-             class="nav-child flex items-center space-x-2 py-1.5 rounded-md text-sm transition-colors w-full
-                    {{ 'text-emerald-400 font-medium' if active_page == 'scope' else 'text-gray-400 hover:text-white' }}">
-            <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/>
-            </svg>
-            <span>Scope</span>
-          </a>
-        </div>
+      <!-- ── REPORTING ──────────────────────────────── -->
+      <button @click="toggle('reporting')" class="nav-section">
+        <span>Reporting</span>
+        <svg class="w-3 h-3 caret flex-shrink-0" :class="open.reporting?'open':''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <div x-show="open.reporting" x-collapse class="space-y-0.5">
+        <a href="/logs"    class="nav-child {{ 'active' if active_page == 'logs' else '' }}">Logs</a>
+        <a href="/scans"   class="nav-child {{ 'active' if active_page == 'scans' else '' }}">Scan Results</a>
       </div>
 
-      <!-- ── LOGS (single) ────────────────────── -->
-      <div class="pt-1">
-        <a href="/logs"
-           class="flex items-center space-x-2.5 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full
-                  {{ 'bg-emerald-600 text-white' if active_page == 'logs' else 'text-gray-400 hover:bg-gray-800 hover:text-white' }}">
-          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-          </svg>
-          <span>Logs</span>
-        </a>
+      <!-- ── CONFIG ────────────────────────────────── -->
+      <button @click="toggle('config')" class="nav-section">
+        <span>Config</span>
+        <svg class="w-3 h-3 caret flex-shrink-0" :class="open.config?'open':''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+        </svg>
+      </button>
+      <div x-show="open.config" x-collapse class="space-y-0.5">
+        <a href="/groups"  class="nav-child {{ 'active' if active_page == 'groups' else '' }}">Groups</a>
+        <a href="/tags"    class="nav-child {{ 'active' if active_page == 'tags' else '' }}">Tags</a>
       </div>
 
     </nav>
 
-    <div class="px-5 py-3 border-t border-gray-800">
-      <div class="text-gray-600 text-xs">Viridis &copy; 2025</div>
-    </div>
+    <div class="px-4 py-3 border-t border-gray-800 text-xs text-gray-700">Viridis &copy; 2025</div>
   </aside>
 
   <!-- Main content -->
@@ -236,16 +139,13 @@
   <div x-data="scanProgress()" x-cloak @jade-scan.window="startScan($event.detail)">
     <div x-show="open"
          class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
-         x-transition:enter="transition ease-out duration-200"
-         x-transition:enter-start="opacity-0"
-         x-transition:enter-end="opacity-100">
+         x-transition:enter="transition ease-out duration-150"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
       <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
-        <!-- Header -->
         <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
-          <div class="flex items-center space-x-3">
-            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" x-show="!completed && !errorMsg"></div>
-            <div class="w-2 h-2 rounded-full bg-emerald-500" x-show="completed"></div>
-            <div class="w-2 h-2 rounded-full bg-red-500" x-show="errorMsg"></div>
+          <div class="flex items-center space-x-2.5">
+            <span class="w-2 h-2 rounded-full" :class="errorMsg ? 'bg-red-500' : completed ? 'bg-emerald-500' : 'bg-emerald-400 animate-pulse'"></span>
             <h3 class="text-sm font-semibold text-white">Live Scan Progress</h3>
           </div>
           <button @click="closeModal()" class="text-gray-500 hover:text-gray-300">
@@ -254,69 +154,59 @@
             </svg>
           </button>
         </div>
-
         <div class="px-5 py-4 space-y-4">
-          <!-- Progress bar -->
           <div>
             <div class="flex justify-between text-xs text-gray-400 mb-1.5">
-              <span x-text="currentCheck || 'Initializing...'"></span>
-              <span x-text="total > 0 ? Math.round(done/total*100) + '%' : '...'"></span>
+              <span x-text="currentCheck || 'Initializing…'"></span>
+              <span x-text="total > 0 ? Math.round(done/total*100) + '%' : '…'"></span>
             </div>
             <div class="w-full bg-gray-800 rounded-full h-1.5">
               <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
                    :style="`width: ${total > 0 ? Math.round(done/total*100) : 5}%`"></div>
             </div>
           </div>
-
-          <!-- Terminal feed -->
-          <div class="h-52 overflow-y-auto rounded-lg p-3 bg-black border border-gray-800 space-y-0.5 font-mono text-xs"
-               x-ref="feed">
+          <div class="h-52 overflow-y-auto rounded-lg p-3 bg-black border border-gray-800 font-mono text-xs space-y-0.5" x-ref="feed">
             <template x-for="(msg, i) in feed" :key="i">
               <div :class="{
-                'text-red-400':    msg.severity === 'critical',
-                'text-orange-400': msg.severity === 'high',
-                'text-yellow-400': msg.severity === 'medium',
-                'text-emerald-400': msg.severity === 'low',
-                'text-blue-400':   msg.severity === 'info',
+                'text-red-400':    msg.severity==='critical',
+                'text-orange-400': msg.severity==='high',
+                'text-yellow-400': msg.severity==='medium',
+                'text-emerald-400':msg.severity==='low',
+                'text-blue-400':   msg.severity==='info',
                 'text-gray-400':   !msg.severity
               }" x-text="msg.text"></div>
             </template>
-            <div x-show="feed.length === 0" class="text-gray-600">Waiting for results...</div>
+            <div x-show="feed.length===0" class="text-gray-700">Waiting for results…</div>
           </div>
-
-          <!-- Severity summary (post-complete) -->
           <div x-show="completed" class="grid grid-cols-5 gap-2 text-center">
             <div class="bg-red-950 border border-red-900 rounded-lg p-2">
               <div class="text-red-400 font-bold text-lg" x-text="counts.critical"></div>
-              <div class="text-xs text-red-600">Critical</div>
+              <div class="text-xs text-red-700">Critical</div>
             </div>
             <div class="bg-orange-950 border border-orange-900 rounded-lg p-2">
               <div class="text-orange-400 font-bold text-lg" x-text="counts.high"></div>
-              <div class="text-xs text-orange-600">High</div>
+              <div class="text-xs text-orange-700">High</div>
             </div>
             <div class="bg-yellow-950 border border-yellow-900 rounded-lg p-2">
               <div class="text-yellow-400 font-bold text-lg" x-text="counts.medium"></div>
-              <div class="text-xs text-yellow-700">Medium</div>
+              <div class="text-xs text-yellow-800">Medium</div>
             </div>
             <div class="bg-emerald-950 border border-emerald-900 rounded-lg p-2">
               <div class="text-emerald-400 font-bold text-lg" x-text="counts.low"></div>
-              <div class="text-xs text-emerald-700">Low</div>
+              <div class="text-xs text-emerald-800">Low</div>
             </div>
             <div class="bg-blue-950 border border-blue-900 rounded-lg p-2">
               <div class="text-blue-400 font-bold text-lg" x-text="counts.info"></div>
-              <div class="text-xs text-blue-700">Info</div>
+              <div class="text-xs text-blue-800">Info</div>
             </div>
           </div>
         </div>
-
-        <!-- Footer -->
         <div class="px-5 py-3 border-t border-gray-700 flex justify-between items-center">
           <span x-show="!completed && !errorMsg" class="text-xs text-gray-500">Scan running…</span>
           <span x-show="completed" class="text-xs text-emerald-400 font-medium">Scan complete</span>
-          <span x-show="errorMsg" class="text-xs text-red-400" x-text="errorMsg"></span>
+          <span x-show="errorMsg" class="text-xs text-red-400" x-text="'Error: ' + errorMsg"></span>
           <div class="flex space-x-2">
-            <a x-show="scanId && completed"
-               :href="`/scans/${scanId}`"
+            <a x-show="scanId && completed" :href="`/scans/${scanId}`"
                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">
               View Results
             </a>
@@ -330,117 +220,98 @@
     </div>
   </div>
 
+  <style>
+    .nav-top {
+      display: flex; align-items: center; gap: 0.625rem;
+      padding: 0.5rem 0.75rem; border-radius: 0.5rem;
+      font-size: 0.875rem; font-weight: 500;
+      color: #9ca3af; width: 100%; transition: background-color 0.15s, color 0.15s;
+    }
+    .nav-top:hover  { background: #1f2937; color: #fff; }
+    .nav-top.active { background: #065f46; color: #fff; }
+    .nav-section {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 0.375rem 0.75rem; margin-top: 0.375rem;
+      border-radius: 0.375rem; font-size: 0.7rem; font-weight: 600;
+      letter-spacing: 0.06em; text-transform: uppercase;
+      color: #6b7280; transition: background-color 0.15s, color 0.15s;
+    }
+    .nav-section:hover { background: #1f2937; color: #d1d5db; }
+    .nav-child {
+      display: block; padding: 0.3rem 0.75rem 0.3rem 2rem;
+      border-radius: 0.375rem; font-size: 0.8125rem;
+      color: #9ca3af; transition: background-color 0.15s, color 0.15s;
+    }
+    .nav-child:hover  { background: #1f2937; color: #fff; }
+    .nav-child.active { color: #34d399; font-weight: 500; }
+    .nav-subheader {
+      padding: 0.5rem 0.75rem 0.1rem 2rem;
+      font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em;
+      text-transform: uppercase; color: #4b5563;
+    }
+  </style>
+
   <script>
     function sidebarNav() {
-      const STORE_KEY = 'viridis_nav';
-      const saved = (() => { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; } })();
+      const KEY = 'viridis_nav';
+      const saved = (() => { try { return JSON.parse(localStorage.getItem(KEY)||'{}'); } catch { return {}; } })();
       return {
         open: {
-          scanning:  saved.scanning  !== false,  // default open
-          schedules: saved.schedules || false,
-          tags:      saved.tags      || false,
+          scanning:  saved.scanning  !== false,
+          inventory: saved.inventory || false,
           tools:     saved.tools     || false,
+          schedules: saved.schedules || false,
           reporting: saved.reporting || false,
+          config:    saved.config    || false,
         },
-        toggle(key) {
-          this.open[key] = !this.open[key];
-          try { localStorage.setItem(STORE_KEY, JSON.stringify(this.open)); } catch {}
+        toggle(k) {
+          this.open[k] = !this.open[k];
+          try { localStorage.setItem(KEY, JSON.stringify(this.open)); } catch {}
         },
       };
     }
 
     function scanProgress() {
       return {
-        open: false,
-        scanId: null,
-        currentCheck: '',
-        done: 0, total: 0,
-        feed: [],
-        completed: false,
-        errorMsg: '',
-        counts: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
-        ws: null,
+        open:false, scanId:null, currentCheck:'', done:0, total:0,
+        feed:[], completed:false, errorMsg:'',
+        counts:{critical:0,high:0,medium:0,low:0,info:0}, ws:null,
 
         startScan(payload) {
-          this.open      = true;
-          this.scanId    = null;
-          this.currentCheck = '';
-          this.done      = 0;
-          this.total     = 0;
-          this.feed      = [];
-          this.completed = false;
-          this.errorMsg  = '';
-          this.counts    = { critical: 0, high: 0, medium: 0, low: 0, info: 0 };
-
+          Object.assign(this, {open:true, scanId:null, currentCheck:'', done:0, total:0,
+            feed:[], completed:false, errorMsg:'', counts:{critical:0,high:0,medium:0,low:0,info:0}});
           fetch('/api/scans', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            method:'POST', headers:{'Content-Type':'application/json'},
             body: JSON.stringify(payload),
           })
-          .then(r => {
-            if (!r.ok) return r.text().then(t => { throw new Error(t.slice(0, 200)); });
-            return r.json();
-          })
-          .then(data => {
-            if (data.scan_id) {
-              this.scanId = data.scan_id;
-              this._connectWs(data.scan_id);
-            } else {
-              this.errorMsg = data.detail || 'Failed to start scan';
-            }
-          })
-          .catch(e => { this.errorMsg = String(e); });
+          .then(r => { if(!r.ok) return r.text().then(t => { throw new Error(t.slice(0,200)); }); return r.json(); })
+          .then(d => { if(d.scan_id) { this.scanId=d.scan_id; this._connectWs(d.scan_id); }
+                       else { this.errorMsg = d.detail||'Failed to start scan'; } })
+          .catch(e => { this.errorMsg = String(e).replace('Error: ',''); });
         },
 
-        _connectWs(scanId) {
-          const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-          this.ws = new WebSocket(`${proto}://${location.host}/ws/scan/${scanId}`);
-          const self = this;
-
-          this.ws.onmessage = function(e) {
+        _connectWs(id) {
+          const proto = location.protocol==='https:'?'wss':'ws';
+          this.ws = new WebSocket(`${proto}://${location.host}/ws/scan/${id}`);
+          const s = this;
+          this.ws.onmessage = e => {
             const ev = JSON.parse(e.data);
-            if (ev.type === 'progress') {
-              self.currentCheck = ev.target ? `${ev.target} → ${ev.check}` : ev.check;
-              self.done  = ev.done;
-              self.total = ev.total;
-            } else if (ev.type === 'finding') {
-              self.feed.push({
-                text: `[${(ev.severity || 'info').toUpperCase()}] ${ev.target}: ${ev.title}`,
-                severity: ev.severity,
-              });
-              self.$nextTick(() => {
-                const el = self.$refs.feed;
-                if (el) el.scrollTop = el.scrollHeight;
-              });
-            } else if (ev.type === 'complete') {
-              self.completed = true;
-              self.done = self.total || self.done;
-              self.counts = {
-                critical: ev.critical || 0, high: ev.high || 0,
-                medium: ev.medium || 0, low: ev.low || 0, info: ev.info || 0,
-              };
-              self.currentCheck = 'Done';
-            } else if (ev.type === 'error') {
-              self.errorMsg = ev.message || 'Unknown error';
+            if (ev.type==='progress') { s.currentCheck=ev.target?`${ev.target} → ${ev.check}`:ev.check; s.done=ev.done; s.total=ev.total; }
+            else if (ev.type==='finding') {
+              s.feed.push({text:`[${(ev.severity||'info').toUpperCase()}] ${ev.target}: ${ev.title}`, severity:ev.severity});
+              s.$nextTick(()=>{ const el=s.$refs.feed; if(el) el.scrollTop=el.scrollHeight; });
             }
+            else if (ev.type==='complete') { s.completed=true; s.done=s.total||s.done; s.counts={critical:ev.critical||0,high:ev.high||0,medium:ev.medium||0,low:ev.low||0,info:ev.info||0}; s.currentCheck='Done'; }
+            else if (ev.type==='error') { s.errorMsg=ev.message||'Unknown error'; }
           };
-
-          this.ws.onerror = function() {
-            self.errorMsg = 'Connection error';
-          };
+          this.ws.onerror = () => { s.errorMsg='Connection error'; };
         },
 
-        closeModal() {
-          if (this.ws) { this.ws.close(); this.ws = null; }
-          this.open = false;
-        },
+        closeModal() { if(this.ws){this.ws.close();this.ws=null;} this.open=false; },
       };
     }
 
-    // Global helper — dispatch from any page to open scan modal
-    window.startScan = function(payload) {
-      window.dispatchEvent(new CustomEvent('jade-scan', { detail: payload || {} }));
-    };
+    window.startScan = p => window.dispatchEvent(new CustomEvent('jade-scan', {detail: p||{}}));
   </script>
 
 </body>

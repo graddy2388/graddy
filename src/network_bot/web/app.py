@@ -26,7 +26,10 @@ from . import active_scans  # shared dict in web/__init__.py
 def _make_db_dep(db_path: str):
     """Return a FastAPI dependency that yields a sqlite3 connection."""
     def dep():
-        conn = sqlite3.connect(db_path)
+        # check_same_thread=False required when async endpoints use sync deps:
+        # FastAPI runs sync generators in a thread pool, but async handlers run
+        # in the event loop thread — SQLite's default check would reject this.
+        conn = sqlite3.connect(db_path, check_same_thread=False)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         try:
