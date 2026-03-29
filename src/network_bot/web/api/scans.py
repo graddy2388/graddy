@@ -28,11 +28,13 @@ class ScanIn(BaseModel):
     group_id: Optional[int] = None
     tag_id: Optional[int] = None
     profile_id: Optional[int] = None
-    subnet: Optional[str] = None       # CIDR for subnet scanning
+    subnet: Optional[str] = None
     is_external: Optional[bool] = False
     scan_name: Optional[str] = None
+    adhoc_host: Optional[str] = None        # one-off host without a DB entry
+    adhoc_checks: Optional[List[str]] = None  # checks to run for adhoc scan
 
-    model_config = {"extra": "ignore"}   # ignore unknown fields (Pydantic v2 safe)
+    model_config = {"extra": "ignore"}
 
 
 # Default checks registry – new checks registered here
@@ -112,15 +114,15 @@ def run_checks_for_web(
     done = 0
 
     try:
-        with get_db(db_path) as db:
-            for target in targets:
-                host = target["host"]
-                name = target.get("name", host)
+        for target in targets:
+            host = target["host"]
+            name = target.get("name", host)
 
-                # Scope check
-                try:
+            # Scope check — short-lived connection
+            try:
+                with get_db(db_path) as _db:
                     resolved_ip = target.get("last_resolved_ip") or host
-                    if not is_in_scope(db, resolved_ip):
+                    if not is_in_scope(_db, resolved_ip):
                         _put({
                             "type": "progress",
                             "target": host,
@@ -137,109 +139,114 @@ def run_checks_for_web(
                             else _DEFAULT_CHECKS
                         )
                         continue
+            except Exception:
+                pass  # allow if scope check fails
+
+            raw_checks = target.get("checks")
+            if isinstance(raw_checks, str):
+                try:
+                    checks_to_run = json.loads(raw_checks)
                 except Exception:
-                    pass  # allow if scope check fails
-
-                raw_checks = target.get("checks")
-                if isinstance(raw_checks, str):
-                    try:
-                        checks_to_run = json.loads(raw_checks)
-                    except Exception:
-                        checks_to_run = _DEFAULT_CHECKS
-                elif isinstance(raw_checks, list):
-                    checks_to_run = raw_checks
-                else:
                     checks_to_run = _DEFAULT_CHECKS
+            elif isinstance(raw_checks, list):
+                checks_to_run = raw_checks
+            else:
+                checks_to_run = _DEFAULT_CHECKS
 
-                for check_name in checks_to_run:
-                    check_class = CHECK_REGISTRY.get(check_name)
-                    if check_class is None:
-                        done += 1
-                        continue
+            for check_name in checks_to_run:
+                check_class = CHECK_REGISTRY.get(check_name)
+                if check_class is None:
+                    done += 1
+                    continue
 
-                    _put({
-                        "type": "progress",
-                        "target": host,
-                        "check": check_name,
-                        "done": done,
-                        "total": total_checks,
-                    })
+                _put({
+                    "type": "progress",
+                    "target": host,
+                    "check": check_name,
+                    "done": done,
+                    "total": total_checks,
+                })
 
-                    checker = check_class(config)
-                    check_timeout = _CHECK_TIMEOUTS.get(check_name, _DEFAULT_CHECK_TIMEOUT)
+                checker = check_class(config)
+                check_timeout = _CHECK_TIMEOUTS.get(check_name, _DEFAULT_CHECK_TIMEOUT)
+                try:
+                    _ex = ThreadPoolExecutor(max_workers=1)
+                    _fut = _ex.submit(checker.run, target)
                     try:
-                        _ex = ThreadPoolExecutor(max_workers=1)
-                        _fut = _ex.submit(checker.run, target)
-                        try:
-                            result = _fut.result(timeout=check_timeout)
-                        except FuturesTimeout:
-                            from ....checks.base import CheckResult as CR
-                            result = CR(
-                                check_name=check_name,
-                                target=host,
-                                passed=False,
-                                error=f"Check timed out after {check_timeout}s",
-                            )
-                            _put({
-                                "type": "finding",
-                                "target": host,
-                                "severity": "medium",
-                                "title": f"{check_name} timed out after {check_timeout}s",
-                            })
-                        finally:
-                            _ex.shutdown(wait=False)
-                    except Exception as exc:
+                        result = _fut.result(timeout=check_timeout)
+                    except FuturesTimeout:
                         from ....checks.base import CheckResult as CR
                         result = CR(
                             check_name=check_name,
                             target=host,
                             passed=False,
-                            error=f"Unexpected error: {exc}",
+                            error=f"Check timed out after {check_timeout}s",
                         )
-
-                    findings_list = []
-                    for f in result.findings:
-                        sev_val = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
-                        if sev_val in sev_counts:
-                            sev_counts[sev_val] += 1
-                        findings_list.append({
-                            "title": f.title,
-                            "severity": sev_val,
-                            "description": f.description,
-                            "recommendation": getattr(f, "recommendation", ""),
-                            "details": getattr(f, "details", {}),
-                        })
                         _put({
                             "type": "finding",
                             "target": host,
-                            "severity": sev_val,
-                            "title": f.title,
+                            "severity": "medium",
+                            "title": f"{check_name} timed out after {check_timeout}s",
                         })
-
-                    add_scan_result(
-                        db,
-                        scan_id=scan_id,
-                        target_host=host,
-                        target_name=name,
+                    finally:
+                        _ex.shutdown(wait=False)
+                except Exception as exc:
+                    from ....checks.base import CheckResult as CR
+                    result = CR(
                         check_name=check_name,
-                        passed=result.passed,
-                        findings=findings_list,
-                        metadata=result.metadata,
-                        error=result.error,
-                        timestamp=result.timestamp,
+                        target=host,
+                        passed=False,
+                        error=f"Unexpected error: {exc}",
                     )
 
-                    # Persist host inventory data from nmap/subnet scans
-                    if check_name in ("nmap", "subnet_scan") and result.metadata:
-                        try:
-                            _persist_host_data(db, host, result.metadata)
-                        except Exception:
-                            pass
+                findings_list = []
+                for f in result.findings:
+                    sev_val = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
+                    if sev_val in sev_counts:
+                        sev_counts[sev_val] += 1
+                    findings_list.append({
+                        "title": f.title,
+                        "severity": sev_val,
+                        "description": f.description,
+                        "recommendation": getattr(f, "recommendation", ""),
+                        "details": getattr(f, "details", {}),
+                    })
+                    _put({
+                        "type": "finding",
+                        "target": host,
+                        "severity": sev_val,
+                        "title": f.title,
+                    })
 
-                    done += 1
+                # Short-lived connection for each result save
+                try:
+                    with get_db(db_path) as _db:
+                        add_scan_result(
+                            _db,
+                            scan_id=scan_id,
+                            target_host=host,
+                            target_name=name,
+                            check_name=check_name,
+                            passed=result.passed,
+                            findings=findings_list,
+                            metadata=result.metadata,
+                            error=result.error,
+                            timestamp=result.timestamp,
+                        )
 
-        with get_db(db_path) as db:
-            finish_scan(db, scan_id, {
+                        # Persist host inventory data from nmap/subnet scans
+                        if check_name in ("nmap", "subnet_scan") and result.metadata:
+                            try:
+                                _persist_host_data(_db, host, result.metadata)
+                            except Exception:
+                                pass
+                except Exception:
+                    pass  # don't let a DB save failure abort the scan
+
+                done += 1
+
+        with get_db(db_path) as _db:
+            finish_scan(_db, scan_id, {
                 "total_targets": len(targets),
                 **sev_counts,
             })
@@ -256,8 +263,8 @@ def run_checks_for_web(
     except Exception as exc:
         try:
             from ..db.schema import get_db as _get_db
-            with _get_db(db_path) as db:
-                fail_scan(db, scan_id)
+            with _get_db(db_path) as _db:
+                fail_scan(_db, scan_id)
         except Exception:
             pass
         _put({"type": "error", "message": str(exc)})
@@ -343,6 +350,16 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
                 "host": body.subnet,
                 "checks": ["subnet_scan"],
                 "enabled": 1,
+            }]
+        elif body.adhoc_host:
+            targets = [{
+                "id": 0,
+                "name": body.adhoc_host,
+                "host": body.adhoc_host,
+                "checks": body.adhoc_checks or _DEFAULT_CHECKS,
+                "enabled": 1,
+                "ports": [80, 443, 22, 25, 8080, 8443, 3306, 3389],
+                "smtp_ports": [25, 587, 465],
             }]
         elif body.target_ids:
             all_targets = get_targets(db)

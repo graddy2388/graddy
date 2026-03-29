@@ -372,6 +372,18 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "active_tool": tool,
         })
 
+    # ── Settings pages ────────────────────────────────────────────────────
+
+    @app.get("/settings/{section}", response_class=HTMLResponse)
+    async def settings_page(request: Request, section: str):
+        valid = {"users", "permissions", "integrations"}
+        if section not in valid:
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse("/settings/users")
+        return _tr(templates, request, f"settings_{section}.html", {
+            "active_page": f"settings_{section}",
+        })
+
     # ── WebSocket for live scan progress ──────────────────────────────────
 
     @app.websocket("/ws/scan/{scan_id}")
@@ -389,14 +401,25 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
                 await websocket.close()
                 return
 
+            # Poll instead of wait_for to avoid Python ≤3.11 queue-item-loss bug
+            import time as _time
+            last_ping = _time.monotonic()
             while True:
                 try:
-                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
-                    await websocket.send_json(event)
-                    if event.get("type") in ("complete", "error"):
-                        break
-                except asyncio.TimeoutError:
-                    await websocket.send_json({"type": "ping"})
+                    event = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    now = _time.monotonic()
+                    if now - last_ping >= 20:
+                        try:
+                            await websocket.send_json({"type": "ping"})
+                        except Exception:
+                            break
+                        last_ping = now
+                    await asyncio.sleep(0.05)
+                    continue
+                await websocket.send_json(event)
+                if event.get("type") in ("complete", "error"):
+                    break
 
         except WebSocketDisconnect:
             pass

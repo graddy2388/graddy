@@ -65,7 +65,6 @@
       <div x-show="open.inventory" x-collapse class="space-y-0.5">
         <a href="/hosts"      class="nav-child {{ 'active' if active_page == 'hosts' else '' }}">All Assets</a>
         <a href="/topology"   class="nav-child {{ 'active' if active_page == 'topology' else '' }}">Topology</a>
-        <a href="/scope"      class="nav-child {{ 'active' if active_page == 'scope' else '' }}">Scope</a>
       </div>
 
       <!-- ── TOOLS ──────────────────────────────────── -->
@@ -121,8 +120,15 @@
         </svg>
       </button>
       <div x-show="open.config" x-collapse class="space-y-0.5">
-        <a href="/groups"  class="nav-child {{ 'active' if active_page == 'groups' else '' }}">Groups</a>
-        <a href="/tags"    class="nav-child {{ 'active' if active_page == 'tags' else '' }}">Tags</a>
+        <div class="nav-subheader">Data</div>
+        <a href="/groups"       class="nav-child {{ 'active' if active_page == 'groups' else '' }}">Groups</a>
+        <a href="/tags"         class="nav-child {{ 'active' if active_page == 'tags' else '' }}">Tags</a>
+        <a href="/scope"        class="nav-child {{ 'active' if active_page == 'scope' else '' }}">Scope</a>
+        <div class="nav-subheader">Access</div>
+        <a href="/settings/users"       class="nav-child {{ 'active' if active_page == 'settings_users' else '' }}">Users</a>
+        <a href="/settings/permissions" class="nav-child {{ 'active' if active_page == 'settings_permissions' else '' }}">Permissions</a>
+        <div class="nav-subheader">Platform</div>
+        <a href="/settings/integrations" class="nav-child {{ 'active' if active_page == 'settings_integrations' else '' }}">Integrations</a>
       </div>
 
     </nav>
@@ -210,7 +216,7 @@
                 'text-emerald-600 font-semibold': msg.t==='done',
                 'text-red-500':     msg.t==='err',
                 'text-gray-400':    !msg.t,
-              }" x-text="msg.text"></div>
+              }"><span class="text-gray-600 select-none" x-text="msg.ts + ' '"></span><span x-text="msg.text"></span></div>
             </template>
             <div x-show="feed.length===0" class="text-gray-700 italic">Waiting for first check…</div>
           </div>
@@ -242,8 +248,10 @@
 
         <!-- Footer -->
         <div class="px-5 py-3 border-t border-gray-700 flex justify-between items-center">
-          <span x-show="running && !errorMsg" class="text-xs text-gray-500">
-            Click <strong class="text-gray-400">−</strong> to minimize — scan keeps running
+          <span x-show="running && !errorMsg" class="text-xs text-gray-500 flex items-center gap-2">
+            <span>Elapsed: <span class="font-mono text-gray-400" x-text="elapsed"></span></span>
+            <span class="text-gray-700">·</span>
+            <span>click − to minimize</span>
           </span>
           <span x-show="completed" class="text-xs text-emerald-400 font-medium">Scan complete</span>
           <span x-show="errorMsg" class="text-xs text-red-400" x-text="'Error: ' + errorMsg"></span>
@@ -320,10 +328,22 @@
         scanId: null, currentCheck: '', done: 0, total: 0,
         feed: [], completed: false, errorMsg: '',
         counts: {critical:0, high:0, medium:0, low:0, info:0}, ws: null,
+        startTime: null, elapsed: '0s', _timerHandle: null,
 
         _push(msg) {
-          this.feed.push(msg);
+          const now = new Date();
+          const ts = now.toTimeString().slice(0,8);
+          this.feed.push({...msg, ts});
           this.$nextTick(() => { const el = this.$refs.feed; if (el) el.scrollTop = el.scrollHeight; });
+        },
+
+        _startTimer() {
+          if (this._timerHandle) clearInterval(this._timerHandle);
+          this._timerHandle = setInterval(() => {
+            if (!this.running) { clearInterval(this._timerHandle); return; }
+            const s = Math.floor((Date.now() - this.startTime) / 1000);
+            this.elapsed = s < 60 ? s + 's' : Math.floor(s/60) + 'm ' + (s%60) + 's';
+          }, 1000);
         },
 
         startScan(payload) {
@@ -331,7 +351,9 @@
           Object.assign(this, {
             open: true, running: true, scanId: null, currentCheck: '', done: 0, total: 0,
             feed: [], completed: false, errorMsg: '', counts: {critical:0, high:0, medium:0, low:0, info:0},
+            startTime: Date.now(), elapsed: '0s',
           });
+          this._startTimer();
           fetch('/api/scans', {
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload),
@@ -370,10 +392,12 @@
               s.currentCheck = 'Complete';
               s.counts = {critical: ev.critical||0, high: ev.high||0, medium: ev.medium||0, low: ev.low||0, info: ev.info||0};
               s._push({ t: 'done', text: '─── Scan complete ───' });
+              clearInterval(s._timerHandle);
             } else if (ev.type === 'error') {
               s.errorMsg = ev.message || 'Unknown error';
               s.running = false;
               s._push({ t: 'err', text: `  ✖ Error: ${ev.message}` });
+              clearInterval(s._timerHandle);
             }
           };
           this.ws.onerror = () => { s.errorMsg = 'Connection error'; s.running = false; };
@@ -381,6 +405,7 @@
 
         closeModal() {
           if (this.ws) { this.ws.close(); this.ws = null; }
+          clearInterval(this._timerHandle);
           this.open = false;
           this.running = false;
         },
