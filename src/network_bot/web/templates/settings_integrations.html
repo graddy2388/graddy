@@ -1,0 +1,259 @@
+{% extends "base.html" %}
+{% block title %}Integrations – Viridis{% endblock %}
+
+{% block content %}
+<div class="p-6 space-y-5" x-data="integrationsApp()">
+
+  <div>
+    <h1 class="text-xl font-bold text-white">Integrations</h1>
+    <p class="text-sm text-gray-500 mt-0.5">Connect Viridis to your alerting, ticketing, and security stack</p>
+  </div>
+
+  <!-- Notifications -->
+  <div class="space-y-3">
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Notifications</h2>
+
+    <!-- Slack -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.slack.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">💬</div>
+          <div>
+            <div class="text-sm font-semibold text-white">Slack</div>
+            <div class="text-xs text-gray-500">Post scan alerts and findings to a Slack channel</div>
+          </div>
+        </div>
+        <button @click="cfg.slack.enabled = !cfg.slack.enabled; save()"
+                :class="cfg.slack.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.slack.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.slack.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Webhook URL</label>
+          <input x-model="cfg.slack.webhook" type="text" placeholder="https://hooks.slack.com/services/..."
+                 @blur="save()"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Channel</label>
+            <input x-model="cfg.slack.channel" type="text" placeholder="#security-alerts"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity</label>
+            <select x-model="cfg.slack.min_severity" @change="save()"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="critical">Critical only</option>
+              <option value="high">High+</option>
+              <option value="medium">Medium+</option>
+              <option value="low">All findings</option>
+            </select>
+          </div>
+        </div>
+        <button @click="testSlack()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors">
+          Send test message
+        </button>
+      </div>
+    </div>
+
+    <!-- PagerDuty -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.pagerduty.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">🔔</div>
+          <div>
+            <div class="text-sm font-semibold text-white">PagerDuty</div>
+            <div class="text-xs text-gray-500">Create incidents for critical and high severity findings</div>
+          </div>
+        </div>
+        <button @click="cfg.pagerduty.enabled = !cfg.pagerduty.enabled; save()"
+                :class="cfg.pagerduty.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.pagerduty.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.pagerduty.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Integration Key (Events API v2)</label>
+          <input x-model="cfg.pagerduty.key" type="password" placeholder="••••••••••••••••"
+                 @blur="save()"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Email -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.email.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">✉️</div>
+          <div>
+            <div class="text-sm font-semibold text-white">Email / SMTP</div>
+            <div class="text-xs text-gray-500">Send scan summaries and alert digests via email</div>
+          </div>
+        </div>
+        <button @click="cfg.email.enabled = !cfg.email.enabled; save()"
+                :class="cfg.email.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.email.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.email.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">SMTP Host</label>
+            <input x-model="cfg.email.host" type="text" placeholder="smtp.example.com"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Port</label>
+            <input x-model="cfg.email.port" type="number" placeholder="587"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">From address</label>
+            <input x-model="cfg.email.from" type="email" placeholder="viridis@example.com"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Recipients</label>
+            <input x-model="cfg.email.to" type="text" placeholder="sec@example.com, soc@example.com"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ticketing -->
+  <div class="space-y-3">
+    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ticketing</h2>
+
+    <!-- Jira -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.jira.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">🎯</div>
+          <div>
+            <div class="text-sm font-semibold text-white">Jira</div>
+            <div class="text-xs text-gray-500">Auto-create Jira tickets for critical and high findings</div>
+          </div>
+        </div>
+        <button @click="cfg.jira.enabled = !cfg.jira.enabled; save()"
+                :class="cfg.jira.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.jira.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.jira.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Jira URL</label>
+            <input x-model="cfg.jira.url" type="text" placeholder="https://yourcompany.atlassian.net"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Project Key</label>
+            <input x-model="cfg.jira.project" type="text" placeholder="SEC"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">API Token</label>
+            <input x-model="cfg.jira.token" type="password" placeholder="••••••••"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Assignee email</label>
+            <input x-model="cfg.jira.assignee" type="email" placeholder="sec-lead@example.com"
+                   @blur="save()"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Webhook -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.webhook.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">🔗</div>
+          <div>
+            <div class="text-sm font-semibold text-white">Custom Webhook</div>
+            <div class="text-xs text-gray-500">POST scan events as JSON to any HTTP endpoint</div>
+          </div>
+        </div>
+        <button @click="cfg.webhook.enabled = !cfg.webhook.enabled; save()"
+                :class="cfg.webhook.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.webhook.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.webhook.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Endpoint URL</label>
+          <input x-model="cfg.webhook.url" type="text" placeholder="https://your-siem.example.com/ingest"
+                 @blur="save()"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Auth Header (optional)</label>
+          <input x-model="cfg.webhook.auth" type="text" placeholder="Bearer my-secret-token"
+                 @blur="save()"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Saved indicator -->
+  <p x-show="saved" x-transition class="text-xs text-emerald-400">Settings saved.</p>
+
+</div>
+
+<script>
+function integrationsApp() {
+  const DEFAULT = {
+    slack:      { enabled: false, webhook: '', channel: '#security-alerts', min_severity: 'high' },
+    pagerduty:  { enabled: false, key: '' },
+    email:      { enabled: false, host: '', port: 587, from: '', to: '' },
+    jira:       { enabled: false, url: '', project: '', token: '', assignee: '' },
+    webhook:    { enabled: false, url: '', auth: '' },
+  };
+  const stored = (() => { try { return JSON.parse(localStorage.getItem('viridis_integrations') || 'null'); } catch { return null; } })();
+  return {
+    cfg: stored || JSON.parse(JSON.stringify(DEFAULT)),
+    saved: false,
+    save() {
+      localStorage.setItem('viridis_integrations', JSON.stringify(this.cfg));
+      this.saved = true;
+      setTimeout(() => { this.saved = false; }, 2000);
+    },
+    testSlack() {
+      if (!this.cfg.slack.webhook) { alert('Enter a webhook URL first.'); return; }
+      alert('Test message would be sent to ' + (this.cfg.slack.channel || '#channel') + '.\n(Backend integration required for live sends.)');
+    },
+  };
+}
+</script>
+{% endblock %}

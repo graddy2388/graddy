@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}Users – Viridis{% endblock %}
+
+{% block content %}
+<div class="p-6 space-y-5" x-data="usersApp()">
+
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold text-white">Users</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Manage platform users and API access</p>
+    </div>
+    <button @click="showAdd = true"
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      <span>Add User</span>
+    </button>
+  </div>
+
+  <!-- Users table -->
+  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <table class="min-w-full">
+      <thead>
+        <tr class="border-b border-gray-800">
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Active</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-800">
+        <template x-for="u in users" :key="u.id">
+          <tr class="hover:bg-gray-800 transition-colors">
+            <td class="px-4 py-3">
+              <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-white flex-shrink-0"
+                     :style="'background-color:' + u.color" x-text="u.name.slice(0,1).toUpperCase()"></div>
+                <div>
+                  <div class="text-sm font-medium text-white" x-text="u.name"></div>
+                  <div class="text-xs text-gray-500" x-text="u.email"></div>
+                </div>
+              </div>
+            </td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                    :class="{
+                      'bg-red-900 text-red-300': u.role === 'admin',
+                      'bg-blue-900 text-blue-300': u.role === 'analyst',
+                      'bg-gray-800 text-gray-400': u.role === 'viewer',
+                    }" x-text="u.role"></span>
+            </td>
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center gap-1.5 text-xs"
+                    :class="u.active ? 'text-emerald-400' : 'text-gray-600'">
+                <span class="w-1.5 h-1.5 rounded-full" :class="u.active ? 'bg-emerald-400' : 'bg-gray-600'"></span>
+                <span x-text="u.active ? 'Active' : 'Disabled'"></span>
+              </span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-400" x-text="u.last_active || '—'"></td>
+            <td class="px-4 py-3">
+              <div class="flex items-center space-x-1">
+                <button @click="editUser(u)" class="p-1.5 text-gray-400 hover:bg-gray-700 rounded-lg transition-colors" title="Edit">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+                  </svg>
+                </button>
+                <button @click="resetApiKey(u)" class="p-1.5 text-blue-400 hover:bg-blue-900 rounded-lg transition-colors" title="Reset API Key">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                  </svg>
+                </button>
+              </div>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="users.length === 0">
+          <td colspan="5" class="px-4 py-14 text-center text-gray-600 text-sm">
+            No users yet. Click <strong class="text-gray-400">Add User</strong> to get started.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- API Keys section -->
+  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
+    <div class="px-4 py-3 border-b border-gray-800 flex items-center justify-between">
+      <h2 class="text-sm font-semibold text-white">API Keys</h2>
+      <button @click="showNewKey = true"
+              class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors">
+        Generate Key
+      </button>
+    </div>
+    <div class="divide-y divide-gray-800">
+      <template x-for="k in apiKeys" :key="k.id">
+        <div class="px-4 py-3 flex items-center justify-between">
+          <div>
+            <div class="text-sm text-white" x-text="k.name"></div>
+            <div class="text-xs font-mono text-gray-600 mt-0.5" x-text="k.preview"></div>
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-600" x-text="'Created ' + k.created"></span>
+            <button @click="revokeKey(k)" class="text-xs text-red-500 hover:text-red-400 transition-colors">Revoke</button>
+          </div>
+        </div>
+      </template>
+      <div x-show="apiKeys.length === 0" class="px-4 py-6 text-center text-gray-600 text-sm">
+        No API keys yet.
+      </div>
+    </div>
+  </div>
+
+  <!-- Add User Modal -->
+  <div x-show="showAdd" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
+       @click.self="showAdd = false">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white" x-text="editingUser ? 'Edit User' : 'Add User'"></h3>
+        <button @click="showAdd = false" class="text-gray-500 hover:text-gray-300">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="px-5 py-4 space-y-4">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Full Name *</label>
+          <input x-model="form.name" type="text" placeholder="Jane Smith"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Email *</label>
+          <input x-model="form.email" type="email" placeholder="jane@example.com"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Role</label>
+          <select x-model="form.role"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+            <option value="viewer">Viewer — read-only access</option>
+            <option value="analyst">Analyst — run scans, view results</option>
+            <option value="admin">Admin — full access</option>
+          </select>
+        </div>
+      </div>
+      <div class="px-5 py-4 border-t border-gray-700 flex justify-end space-x-3">
+        <button @click="showAdd = false"
+                class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Cancel</button>
+        <button @click="saveUser()"
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">Save</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+function usersApp() {
+  const COLORS = ['#10b981','#6366f1','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
+  return {
+    showAdd: false, showNewKey: false, editingUser: null,
+    form: { name: '', email: '', role: 'analyst' },
+    users: JSON.parse(localStorage.getItem('viridis_users') || '[]'),
+    apiKeys: JSON.parse(localStorage.getItem('viridis_apikeys') || '[]'),
+
+    editUser(u) { this.form = {...u}; this.editingUser = u; this.showAdd = true; },
+
+    saveUser() {
+      if (!this.form.name || !this.form.email) return;
+      if (this.editingUser) {
+        const i = this.users.findIndex(u => u.id === this.editingUser.id);
+        if (i >= 0) this.users[i] = { ...this.users[i], ...this.form };
+      } else {
+        this.users.push({
+          id: Date.now(), active: true,
+          color: COLORS[this.users.length % COLORS.length],
+          last_active: null,
+          ...this.form,
+        });
+      }
+      this._save();
+      this.showAdd = false; this.editingUser = null;
+    },
+
+    resetApiKey(u) {
+      if (!confirm('Reset API key for ' + u.name + '?')) return;
+      const key = 'vrd_' + Math.random().toString(36).slice(2, 18);
+      this.apiKeys.push({ id: Date.now(), name: u.name + ' key', preview: key.slice(0,8) + '••••••••', created: new Date().toLocaleDateString() });
+      this._save();
+      alert('New API key: ' + key + '\n\nSave this — it won\'t be shown again.');
+    },
+
+    revokeKey(k) {
+      if (!confirm('Revoke "' + k.name + '"?')) return;
+      this.apiKeys = this.apiKeys.filter(x => x.id !== k.id);
+      this._save();
+    },
+
+    _save() {
+      localStorage.setItem('viridis_users', JSON.stringify(this.users));
+      localStorage.setItem('viridis_apikeys', JSON.stringify(this.apiKeys));
+    },
+  };
+}
+</script>
+{% endblock %}
