@@ -241,71 +241,57 @@ def run_checks_for_web(
                             timestamp=result.timestamp,
                         )
 
-                        # Persist host inventory data from nmap/subnet scans
+                        # Persist host inventory + auto-tag from nmap/port scans
                         if check_name in ("nmap", "subnet_scan") and result.metadata:
                             try:
                                 _persist_host_data(_db, host, result.metadata)
                             except Exception:
                                 pass
 
-                        # Auto-tag target based on discovered ports / OS
-                        if check_name in ("port_scan", "nmap", "subnet_scan") and result.metadata:
-                            open_ports = result.metadata.get("open_ports", [])
-                            os_guesses = result.metadata.get("os_guesses", [])
-                            os_guess = ""
-                            if os_guesses:
-                                try:
-                                    os_guess = max(os_guesses, key=lambda x: x.get("accuracy", 0)).get("name", "")
-                                except Exception:
-                                    pass
-                            t_id = target.get("id", 0)
-                            if open_ports and t_id > 0:
-                                try:
-                                    added_tags = auto_tag_target(_db, t_id, open_ports, os_guess)
-                                    if added_tags:
-                                        _put({
-                                            "type": "finding",
-                                            "target": host,
-                                            "severity": "info",
-                                            "title": f"Auto-tagged: {', '.join(added_tags)}",
-                                        })
-                                except Exception:
-                                    pass
+                        if check_name in ("nmap", "subnet_scan", "port_scan") and result.metadata:
+                            try:
+                                open_ports = result.metadata.get("open_ports", [])
+                                os_guesses = result.metadata.get("os_guesses", [])
+                                os_guess = ""
+                                if os_guesses:
+                                    best = max(os_guesses, key=lambda x: x.get("accuracy", 0))
+                                    os_guess = best.get("name", "")
+                                added_tags = auto_tag_target(_db, target.get("id", 0), open_ports, os_guess)
+                                if added_tags:
+                                    _put({
+                                        "type": "finding",
+                                        "target": host,
+                                        "severity": "info",
+                                        "title": f"Auto-tagged: {', '.join(added_tags)}",
+                                    })
+                            except Exception:
+                                pass
                 except Exception:
                     pass  # don't let a DB save failure abort the scan
 
                 done += 1
-
-            # After all checks for this target: update risk score + auto-tag
-            tgt_sev = per_target_sev.get(host, {})
-            risk = min(100,
-                tgt_sev.get("critical", 0) * 40 +
-                tgt_sev.get("high", 0) * 15 +
-                tgt_sev.get("medium", 0) * 5 +
-                tgt_sev.get("low", 0) * 1
-            )
-            from datetime import datetime as _dt, timezone as _tz
-            ts_now = _dt.now(_tz.utc).isoformat()
-            try:
-                with get_db(db_path) as _db:
-                    update_target_risk(_db, host, risk, ts_now)
-                if risk > 0:
-                    _put({
-                        "type": "progress",
-                        "target": host,
-                        "check": "risk_update",
-                        "done": done,
-                        "total": total_checks,
-                        "risk_score": risk,
-                    })
-            except Exception:
-                pass
 
         with get_db(db_path) as _db:
             finish_scan(_db, scan_id, {
                 "total_targets": len(targets),
                 **sev_counts,
             })
+
+        # Update per-target risk scores
+        from datetime import datetime, timezone as _tz
+        _now = datetime.now(_tz.utc).isoformat()
+        for _host, _tgt_sev in per_target_sev.items():
+            _score = min(100,
+                _tgt_sev.get("critical", 0) * 40 +
+                _tgt_sev.get("high", 0) * 15 +
+                _tgt_sev.get("medium", 0) * 5 +
+                _tgt_sev.get("low", 0) * 1
+            )
+            try:
+                with get_db(db_path) as _db:
+                    update_target_risk(_db, _host, _score, _now)
+            except Exception:
+                pass
 
         _put({
             "type": "complete",

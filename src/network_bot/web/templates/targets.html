@@ -18,10 +18,25 @@
       filterText:  '',
       filterGroup: '',
       filterTag:   '',
+
+      /* Add/Edit modal */
       showAdd:     false,
       editTarget:  null,
       form: { name:'', host:'', group_id:'', checks:[], ports:'80,443', smtp_ports:'25,587,465', enabled:1, notes:'', tag_ids:[] },
 
+      /* New Scan modal */
+      showScan:       false,
+      scanTab:        'targets',   /* 'targets' | 'subnet' | 'all' */
+      scanSubnet:     '',
+      scanProfile:    '',
+      scanSelected:   [],          /* ids checked in the scan-targets tab */
+
+      /* Bulk selection */
+      bulkSelected:   [],
+
+      /* ------------------------------------------------------------------ */
+      /* Computed                                                             */
+      /* ------------------------------------------------------------------ */
       get filtered() {
         return this.targets.filter(t => {
           var q = this.filterText.toLowerCase();
@@ -32,6 +47,98 @@
         });
       },
 
+      get allBulkChecked() {
+        return this.filtered.length > 0 && this.filtered.every(t => this.bulkSelected.includes(t.id));
+      },
+
+      get someBulkChecked() {
+        return this.bulkSelected.length > 0;
+      },
+
+      /* ------------------------------------------------------------------ */
+      /* Helpers                                                              */
+      /* ------------------------------------------------------------------ */
+      relTime(iso) {
+        if (!iso) return 'Never';
+        var diff = Date.now() - new Date(iso).getTime();
+        var m = Math.floor(diff / 60000);
+        if (m < 1)  return 'just now';
+        if (m < 60) return m + 'm ago';
+        var h = Math.floor(m / 60);
+        if (h < 24) return h + 'h ago';
+        return Math.floor(h / 24) + 'd ago';
+      },
+
+      riskColor(score) {
+        if (!score) return 'text-gray-600 bg-gray-800';
+        if (score <= 25) return 'text-emerald-400 bg-emerald-950';
+        if (score <= 50) return 'text-yellow-400 bg-yellow-950';
+        if (score <= 75) return 'text-orange-400 bg-orange-950';
+        return 'text-red-400 bg-red-950';
+      },
+
+      riskLabel(score) {
+        if (!score) return '—';
+        return score;
+      },
+
+      parsePorts(s) {
+        return s.split(',').map(p => parseInt(p.trim())).filter(n => !isNaN(n));
+      },
+
+      checksCount(t) {
+        var c = t.checks;
+        if (typeof c === 'string') { try { c = JSON.parse(c); } catch(e) { c = []; } }
+        return Array.isArray(c) ? c.length : 0;
+      },
+
+      /* ------------------------------------------------------------------ */
+      /* Bulk selection helpers                                               */
+      /* ------------------------------------------------------------------ */
+      toggleBulk(id) {
+        var idx = this.bulkSelected.indexOf(id);
+        if (idx >= 0) this.bulkSelected.splice(idx, 1); else this.bulkSelected.push(id);
+      },
+
+      toggleAllBulk() {
+        if (this.allBulkChecked) {
+          this.bulkSelected = this.bulkSelected.filter(id => !this.filtered.find(t => t.id === id));
+        } else {
+          this.filtered.forEach(t => { if (!this.bulkSelected.includes(t.id)) this.bulkSelected.push(t.id); });
+        }
+      },
+
+      async bulkDelete() {
+        if (!confirm('Delete ' + this.bulkSelected.length + ' target(s)?')) return;
+        await Promise.all(this.bulkSelected.map(id => fetch('/api/targets/' + id, { method: 'DELETE' })));
+        location.reload();
+      },
+
+      bulkScan() {
+        window.startScan({ target_ids: this.bulkSelected.slice() });
+      },
+
+      /* ------------------------------------------------------------------ */
+      /* Move-to-group dropdown                                               */
+      /* ------------------------------------------------------------------ */
+      showMoveGroup: false,
+
+      async bulkMoveGroup(gid) {
+        this.showMoveGroup = false;
+        await Promise.all(
+          this.bulkSelected.map(id =>
+            fetch('/api/targets/' + id, {
+              method: 'PUT', headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({ group_id: gid || null })
+            })
+          )
+        );
+        location.reload();
+      },
+
+      /* ------------------------------------------------------------------ */
+      /* Add / Edit target                                                    */
+      /* ------------------------------------------------------------------ */
       openAdd() {
         this.form = { name:'', host:'', group_id:'', checks: this.checksList.slice(),
                       ports:'80,443', smtp_ports:'25,587,465', enabled:1, notes:'', tag_ids:[] };
@@ -54,7 +161,7 @@
           checks: checks || [], ports: ports || '80,443',
           smtp_ports: smtp || '25,587,465',
           enabled: t.enabled, notes: t.notes || '',
-          tag_ids: (t.tags || []).map(function(tg){ return tg.id; })
+          tag_ids: (t.tags || []).map(tg => tg.id)
         };
         this.editTarget = t;
         this.showAdd = true;
@@ -64,12 +171,10 @@
         var idx = this.form.checks.indexOf(c);
         if (idx >= 0) this.form.checks.splice(idx, 1); else this.form.checks.push(c);
       },
+
       toggleTag(id) {
         var idx = this.form.tag_ids.indexOf(id);
         if (idx >= 0) this.form.tag_ids.splice(idx, 1); else this.form.tag_ids.push(id);
-      },
-      parsePorts(s) {
-        return s.split(',').map(function(p){ return parseInt(p.trim()); }).filter(function(n){ return !isNaN(n); });
       },
 
       async saveTarget() {
@@ -107,7 +212,45 @@
         if (r.ok) location.reload(); else alert('Resolve failed');
       },
 
-      scanTarget(id) { window.startScan({ target_ids: [id] }); },
+      /* ------------------------------------------------------------------ */
+      /* New Scan modal                                                       */
+      /* ------------------------------------------------------------------ */
+      openScanModal() {
+        this.scanTab      = 'targets';
+        this.scanSubnet   = '';
+        this.scanProfile  = '';
+        this.scanSelected = [];
+        this.showScan     = true;
+      },
+
+      toggleScanTarget(id) {
+        var idx = this.scanSelected.indexOf(id);
+        if (idx >= 0) this.scanSelected.splice(idx, 1); else this.scanSelected.push(id);
+      },
+
+      get scanProfiles() {
+        return (window.scanProfiles) ? window.scanProfiles : [];
+      },
+
+      submitScan() {
+        var payload = {};
+        if (this.scanProfile) payload.profile = this.scanProfile;
+
+        if (this.scanTab === 'targets') {
+          /* If nothing checked, scan all filtered */
+          var ids = this.scanSelected.length > 0
+            ? this.scanSelected
+            : this.filtered.map(t => t.id);
+          payload.target_ids = ids;
+        } else if (this.scanTab === 'subnet') {
+          if (!this.scanSubnet.trim()) { alert('Enter a CIDR subnet.'); return; }
+          payload.subnet = this.scanSubnet.trim();
+        }
+        /* 'all' tab: empty payload = all enabled */
+
+        this.showScan = false;
+        window.startScan(payload);
+      },
     };
   };
 })();
@@ -115,22 +258,39 @@
 
 <div class="p-6 space-y-5" x-data="targetsApp()">
 
-  <!-- Header -->
+  <!-- ================================================================== -->
+  <!-- Header                                                               -->
+  <!-- ================================================================== -->
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-xl font-bold text-white">Targets</h1>
       <p class="text-sm text-gray-500 mt-0.5" x-text="filtered.length + ' target(s)'"></p>
     </div>
-    <button @click="openAdd()"
-            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-      </svg>
-      <span>Add Target</span>
-    </button>
+    <div class="flex items-center space-x-2">
+      <!-- New Scan button -->
+      <button @click="openScanModal()"
+              class="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>New Scan</span>
+      </button>
+      <!-- Add Target button -->
+      <button @click="openAdd()"
+              class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+        </svg>
+        <span>Add Target</span>
+      </button>
+    </div>
   </div>
 
-  <!-- Filters -->
+  <!-- ================================================================== -->
+  <!-- Filters                                                              -->
+  <!-- ================================================================== -->
   <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 flex flex-wrap gap-3">
     <div class="flex-1 min-w-48">
       <input x-model="filterText" type="text" placeholder="Search by name or host…"
@@ -152,25 +312,120 @@
     </select>
   </div>
 
-  <!-- Table -->
+  <!-- ================================================================== -->
+  <!-- Bulk action bar (visible when ≥1 row checked)                       -->
+  <!-- ================================================================== -->
+  <div x-show="someBulkChecked" x-cloak
+       class="flex items-center space-x-3 bg-gray-800 border border-gray-700 rounded-xl px-4 py-2.5">
+    <span class="text-sm text-gray-300 font-medium" x-text="bulkSelected.length + ' selected'"></span>
+    <div class="flex-1"></div>
+
+    <!-- Bulk Scan -->
+    <button @click="bulkScan()"
+            class="flex items-center space-x-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <span>Scan</span>
+    </button>
+
+    <!-- Bulk Delete -->
+    <button @click="bulkDelete()"
+            class="flex items-center space-x-1.5 px-3 py-1.5 bg-red-700 hover:bg-red-600 text-white rounded-lg text-xs font-medium transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+      </svg>
+      <span>Delete</span>
+    </button>
+
+    <!-- Move to Group dropdown -->
+    <div class="relative">
+      <button @click="showMoveGroup = !showMoveGroup"
+              class="flex items-center space-x-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-gray-200 rounded-lg text-xs font-medium transition-colors">
+        <span>Move to Group</span>
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+        </svg>
+      </button>
+      <div x-show="showMoveGroup" x-cloak @click.outside="showMoveGroup = false"
+           class="absolute right-0 mt-1 w-44 bg-gray-800 border border-gray-700 rounded-xl shadow-xl z-20 py-1">
+        <button @click="bulkMoveGroup(null)"
+                class="w-full text-left px-3 py-2 text-xs text-gray-400 hover:bg-gray-700">
+          Remove from group
+        </button>
+        <template x-for="g in groups" :key="g.id">
+          <button @click="bulkMoveGroup(g.id)"
+                  class="w-full text-left px-3 py-2 text-xs text-white hover:bg-gray-700 flex items-center space-x-2">
+            <span class="w-2 h-2 rounded-full flex-shrink-0" :style="'background-color:' + (g.color || '#4b5563')"></span>
+            <span x-text="g.name"></span>
+          </button>
+        </template>
+      </div>
+    </div>
+
+    <!-- Clear selection -->
+    <button @click="bulkSelected = []" class="text-gray-500 hover:text-gray-300 transition-colors" title="Clear selection">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- Table                                                                -->
+  <!-- ================================================================== -->
   <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
     <table class="min-w-full">
       <thead>
         <tr class="border-b border-gray-800">
+          <!-- Select-all checkbox -->
+          <th class="pl-4 pr-2 py-3 w-8">
+            <input type="checkbox"
+                   :checked="allBulkChecked"
+                   @change="toggleAllBulk()"
+                   class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-0 cursor-pointer"/>
+          </th>
           <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
           <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Host / IP</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Risk</th>
           <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Group</th>
           <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tags</th>
           <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Checks</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Scanned</th>
           <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">On</th>
           <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-800">
         <template x-for="t in filtered" :key="t.id">
-          <tr class="hover:bg-gray-800 transition-colors">
+          <tr class="hover:bg-gray-800 transition-colors" :class="bulkSelected.includes(t.id) ? 'bg-gray-800/60' : ''">
+
+            <!-- Row checkbox -->
+            <td class="pl-4 pr-2 py-3 w-8">
+              <input type="checkbox"
+                     :checked="bulkSelected.includes(t.id)"
+                     @change="toggleBulk(t.id)"
+                     class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-0 cursor-pointer"/>
+            </td>
+
+            <!-- Name -->
             <td class="px-4 py-3 text-sm font-medium text-white" x-text="t.name"></td>
+
+            <!-- Host / IP -->
             <td class="px-4 py-3 text-sm font-mono text-gray-300" x-text="t.host"></td>
+
+            <!-- Risk badge -->
+            <td class="px-4 py-3">
+              <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-semibold min-w-[2rem]"
+                    :class="riskColor(t.risk_score)"
+                    x-text="riskLabel(t.risk_score)">
+              </span>
+            </td>
+
+            <!-- Group -->
             <td class="px-4 py-3">
               <template x-if="t.group_name">
                 <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium text-white"
@@ -180,6 +435,8 @@
                 <span class="text-gray-600 text-xs">—</span>
               </template>
             </td>
+
+            <!-- Tags -->
             <td class="px-4 py-3">
               <div class="flex flex-wrap gap-1">
                 <template x-for="tag in (t.tags || [])" :key="tag.id">
@@ -189,11 +446,18 @@
                 <span x-show="!t.tags || t.tags.length === 0" class="text-gray-600 text-xs">—</span>
               </div>
             </td>
+
+            <!-- Checks count -->
             <td class="px-4 py-3">
               <span class="px-2 py-0.5 rounded-full text-xs bg-gray-800 text-gray-400 border border-gray-700"
-                    x-text="(function(){ var c=t.checks; if(typeof c==='string'){try{c=JSON.parse(c);}catch(e){c=[];}} return (Array.isArray(c)?c.length:0)+' checks'; })()">
+                    x-text="checksCount(t) + ' checks'">
               </span>
             </td>
+
+            <!-- Last Scanned -->
+            <td class="px-4 py-3 text-xs text-gray-400 whitespace-nowrap" x-text="relTime(t.last_scanned)"></td>
+
+            <!-- Enabled toggle -->
             <td class="px-4 py-3">
               <button @click="toggleEnabled(t)"
                       :class="t.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
@@ -202,16 +466,10 @@
                       class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
               </button>
             </td>
+
+            <!-- Actions (resolve / edit / delete — no per-row scan) -->
             <td class="px-4 py-3">
               <div class="flex items-center space-x-0.5">
-                <button @click="scanTarget(t.id)"
-                        class="p-1.5 text-emerald-500 hover:bg-emerald-900 rounded-lg transition-colors" title="Scan">
-                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                      d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                  </svg>
-                </button>
                 <button @click="resolveTarget(t)"
                         class="p-1.5 text-blue-400 hover:bg-blue-900 rounded-lg transition-colors" title="Re-resolve hostname">
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -237,19 +495,127 @@
             </td>
           </tr>
         </template>
+
         <tr x-show="targets.length === 0">
-          <td colspan="7" class="px-4 py-14 text-center text-gray-600 text-sm">
+          <td colspan="10" class="px-4 py-14 text-center text-gray-600 text-sm">
             No targets yet. Click <strong class="text-gray-400">Add Target</strong> to get started.
           </td>
         </tr>
         <tr x-show="targets.length > 0 && filtered.length === 0">
-          <td colspan="7" class="px-4 py-10 text-center text-gray-600 text-sm">No targets match your filter.</td>
+          <td colspan="10" class="px-4 py-10 text-center text-gray-600 text-sm">No targets match your filter.</td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <!-- Add / Edit Modal -->
+  <!-- ================================================================== -->
+  <!-- New Scan Modal                                                       -->
+  <!-- ================================================================== -->
+  <div x-show="showScan" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
+       @click.self="showScan = false">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col">
+
+      <!-- Modal header -->
+      <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white">New Scan</h3>
+        <button @click="showScan = false" class="text-gray-500 hover:text-gray-300">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Tabs -->
+      <div class="px-5 pt-3 border-b border-gray-800 flex space-x-1">
+        <button @click="scanTab = 'targets'"
+                :class="scanTab === 'targets' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-500 hover:text-gray-300'"
+                class="pb-2 px-2 text-sm font-medium transition-colors">Targets</button>
+        <button @click="scanTab = 'subnet'"
+                :class="scanTab === 'subnet' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-500 hover:text-gray-300'"
+                class="pb-2 px-2 text-sm font-medium transition-colors">Subnet</button>
+        <button @click="scanTab = 'all'"
+                :class="scanTab === 'all' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-500 hover:text-gray-300'"
+                class="pb-2 px-2 text-sm font-medium transition-colors">All</button>
+      </div>
+
+      <!-- Tab content -->
+      <div class="px-5 py-4 overflow-y-auto flex-1 space-y-4">
+
+        <!-- Profile selector (all tabs) -->
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Profile <span class="text-gray-600">(optional)</span></label>
+          <select x-model="scanProfile"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <option value="">Default profile</option>
+            <template x-for="p in scanProfiles" :key="p.id || p.name || p">
+              <option :value="p.id || p.name || p" x-text="p.name || p"></option>
+            </template>
+          </select>
+        </div>
+
+        <!-- TARGETS tab -->
+        <div x-show="scanTab === 'targets'" class="space-y-2">
+          <p class="text-xs text-gray-500">Select targets to scan. If none selected, all filtered targets will be scanned.</p>
+          <div class="bg-gray-800 border border-gray-700 rounded-lg overflow-hidden max-h-64 overflow-y-auto">
+            <template x-for="t in filtered" :key="t.id">
+              <label class="flex items-center space-x-3 px-3 py-2 hover:bg-gray-700 cursor-pointer border-b border-gray-700/50 last:border-b-0">
+                <input type="checkbox"
+                       :checked="scanSelected.includes(t.id)"
+                       @change="toggleScanTarget(t.id)"
+                       class="w-3.5 h-3.5 rounded border-gray-600 bg-gray-800 text-indigo-500 focus:ring-0 flex-shrink-0"/>
+                <span class="text-sm text-white truncate" x-text="t.name"></span>
+                <span class="text-xs font-mono text-gray-500 ml-auto flex-shrink-0 pl-2" x-text="t.host"></span>
+              </label>
+            </template>
+            <div x-show="filtered.length === 0" class="px-3 py-6 text-center text-gray-600 text-xs">
+              No targets match current filters.
+            </div>
+          </div>
+          <p class="text-xs text-gray-600"
+             x-text="scanSelected.length > 0 ? scanSelected.length + ' target(s) selected' : 'All ' + filtered.length + ' filtered target(s) will be scanned'">
+          </p>
+        </div>
+
+        <!-- SUBNET tab -->
+        <div x-show="scanTab === 'subnet'" class="space-y-2">
+          <label class="block text-xs text-gray-400 mb-1.5">CIDR Subnet</label>
+          <input x-model="scanSubnet" type="text" placeholder="e.g. 10.0.0.0/24"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-indigo-500"/>
+          <p class="text-xs text-gray-600">Discovers and scans all hosts in the given subnet.</p>
+        </div>
+
+        <!-- ALL tab -->
+        <div x-show="scanTab === 'all'" class="space-y-3">
+          <div class="bg-indigo-950 border border-indigo-800 rounded-lg px-4 py-3 text-sm text-indigo-200">
+            This will scan <strong>all enabled targets</strong> in the system, ignoring any current filters.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Modal footer -->
+      <div class="px-5 py-4 border-t border-gray-700 flex justify-end space-x-3">
+        <button @click="showScan = false"
+                class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Cancel</button>
+
+        <!-- Dynamic action button label per tab -->
+        <button @click="submitScan()"
+                class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors flex items-center space-x-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span x-text="scanTab === 'targets' ? (scanSelected.length > 0 ? 'Scan Selected' : 'Scan Filtered') : scanTab === 'subnet' ? 'Scan Subnet' : 'Scan All Enabled'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================================================================== -->
+  <!-- Add / Edit Target Modal                                              -->
+  <!-- ================================================================== -->
   <div x-show="showAdd" x-cloak
        class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
        @click.self="showAdd = false">
