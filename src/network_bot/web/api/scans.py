@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import json
 import threading
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -85,6 +86,15 @@ def run_checks_for_web(
     def _put(event: dict) -> None:
         loop.call_soon_threadsafe(progress_queue.put_nowait, event)
 
+    # Per-check timeout (seconds). Heavy checks get more time.
+    _CHECK_TIMEOUTS = {
+        "nmap": 300, "subnet_scan": 300,
+        "port_scan": 120, "vuln": 120, "exposed_paths": 120,
+        "ssl": 90, "cipher": 90, "smtp": 90,
+        "http": 60, "dns": 60,
+    }
+    _DEFAULT_CHECK_TIMEOUT = 90
+
     sev_counts: Dict[str, int] = {
         "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0
     }
@@ -156,8 +166,28 @@ def run_checks_for_web(
                     })
 
                     checker = check_class(config)
+                    check_timeout = _CHECK_TIMEOUTS.get(check_name, _DEFAULT_CHECK_TIMEOUT)
                     try:
-                        result = checker.run(target)
+                        _ex = ThreadPoolExecutor(max_workers=1)
+                        _fut = _ex.submit(checker.run, target)
+                        try:
+                            result = _fut.result(timeout=check_timeout)
+                        except FuturesTimeout:
+                            from ....checks.base import CheckResult as CR
+                            result = CR(
+                                check_name=check_name,
+                                target=host,
+                                passed=False,
+                                error=f"Check timed out after {check_timeout}s",
+                            )
+                            _put({
+                                "type": "finding",
+                                "target": host,
+                                "severity": "medium",
+                                "title": f"{check_name} timed out after {check_timeout}s",
+                            })
+                        finally:
+                            _ex.shutdown(wait=False)
                     except Exception as exc:
                         from ....checks.base import CheckResult as CR
                         result = CR(
