@@ -135,74 +135,116 @@
     {% block content %}{% endblock %}
   </main>
 
-  <!-- Live Scan Progress Modal -->
+  <!-- Live Scan Progress Modal + floating pill -->
   <div x-data="scanProgress()" x-cloak @jade-scan.window="startScan($event.detail)">
+
+    <!-- Floating pill: visible when scan is running but modal is minimized -->
+    <div x-show="running && !open"
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         @click="open = true"
+         class="fixed bottom-5 right-5 z-50 flex items-center space-x-2.5 bg-gray-900 border border-emerald-600 rounded-full px-4 py-2.5 cursor-pointer shadow-xl hover:bg-gray-800 transition-colors select-none">
+      <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse flex-shrink-0"></span>
+      <span class="text-xs text-white font-medium">Scan in progress</span>
+      <span x-show="total > 0" class="text-xs text-emerald-400 font-mono"
+            x-text="Math.round(done/total*100) + '%'"></span>
+    </div>
+
+    <!-- Modal -->
     <div x-show="open"
-         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
+         class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60"
          x-transition:enter="transition ease-out duration-150"
-         x-transition:enter-start="opacity-0 scale-95"
-         x-transition:enter-end="opacity-100 scale-100">
-      <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         @click.self="running ? (open = false) : closeModal()">
+      <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden"
+           x-transition:enter="transition ease-out duration-150"
+           x-transition:enter-start="opacity-0 scale-95"
+           x-transition:enter-end="opacity-100 scale-100">
+
+        <!-- Header -->
         <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
           <div class="flex items-center space-x-2.5">
-            <span class="w-2 h-2 rounded-full" :class="errorMsg ? 'bg-red-500' : completed ? 'bg-emerald-500' : 'bg-emerald-400 animate-pulse'"></span>
+            <span class="w-2 h-2 rounded-full flex-shrink-0"
+                  :class="errorMsg ? 'bg-red-500' : completed ? 'bg-emerald-500' : 'bg-emerald-400 animate-pulse'"></span>
             <h3 class="text-sm font-semibold text-white">Live Scan Progress</h3>
+            <span x-show="scanId" class="text-xs text-gray-600 font-mono" x-text="'#' + scanId"></span>
           </div>
-          <button @click="closeModal()" class="text-gray-500 hover:text-gray-300">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <!-- X = minimize while running, close when done -->
+          <button @click="running ? (open = false) : closeModal()" class="text-gray-500 hover:text-gray-300" :title="running ? 'Minimize' : 'Close'">
+            <svg x-show="running" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 12H6"/>
+            </svg>
+            <svg x-show="!running" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
           </button>
         </div>
-        <div class="px-5 py-4 space-y-4">
-          <div>
-            <div class="flex justify-between text-xs text-gray-400 mb-1.5">
-              <span x-text="currentCheck || 'Initializing…'"></span>
-              <span x-text="total > 0 ? Math.round(done/total*100) + '%' : '…'"></span>
-            </div>
-            <div class="w-full bg-gray-800 rounded-full h-1.5">
-              <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
-                   :style="`width: ${total > 0 ? Math.round(done/total*100) : 5}%`"></div>
-            </div>
+
+        <!-- Progress bar -->
+        <div class="px-5 pt-4 pb-2">
+          <div class="flex justify-between text-xs text-gray-400 mb-1.5">
+            <span class="truncate pr-4" x-text="currentCheck || 'Initializing…'"></span>
+            <span class="flex-shrink-0 font-mono"
+                  x-text="total > 0 ? done + ' / ' + total + ' (' + Math.round(done/total*100) + '%)' : '…'"></span>
           </div>
-          <div class="h-52 overflow-y-auto rounded-lg p-3 bg-black border border-gray-800 font-mono text-xs space-y-0.5" x-ref="feed">
-            <template x-for="(msg, i) in feed" :key="i">
-              <div :class="{
-                'text-red-400':    msg.severity==='critical',
-                'text-orange-400': msg.severity==='high',
-                'text-yellow-400': msg.severity==='medium',
-                'text-emerald-400':msg.severity==='low',
-                'text-blue-400':   msg.severity==='info',
-                'text-gray-400':   !msg.severity
-              }" x-text="msg.text"></div>
-            </template>
-            <div x-show="feed.length===0" class="text-gray-700">Waiting for results…</div>
-          </div>
-          <div x-show="completed" class="grid grid-cols-5 gap-2 text-center">
-            <div class="bg-red-950 border border-red-900 rounded-lg p-2">
-              <div class="text-red-400 font-bold text-lg" x-text="counts.critical"></div>
-              <div class="text-xs text-red-700">Critical</div>
-            </div>
-            <div class="bg-orange-950 border border-orange-900 rounded-lg p-2">
-              <div class="text-orange-400 font-bold text-lg" x-text="counts.high"></div>
-              <div class="text-xs text-orange-700">High</div>
-            </div>
-            <div class="bg-yellow-950 border border-yellow-900 rounded-lg p-2">
-              <div class="text-yellow-400 font-bold text-lg" x-text="counts.medium"></div>
-              <div class="text-xs text-yellow-800">Medium</div>
-            </div>
-            <div class="bg-emerald-950 border border-emerald-900 rounded-lg p-2">
-              <div class="text-emerald-400 font-bold text-lg" x-text="counts.low"></div>
-              <div class="text-xs text-emerald-800">Low</div>
-            </div>
-            <div class="bg-blue-950 border border-blue-900 rounded-lg p-2">
-              <div class="text-blue-400 font-bold text-lg" x-text="counts.info"></div>
-              <div class="text-xs text-blue-800">Info</div>
-            </div>
+          <div class="w-full bg-gray-800 rounded-full h-1.5">
+            <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
+                 :style="`width: ${total > 0 ? Math.round(done/total*100) : 3}%`"></div>
           </div>
         </div>
+
+        <!-- Feed -->
+        <div class="px-5 pb-4">
+          <div class="h-56 overflow-y-auto rounded-lg p-3 bg-black border border-gray-800 font-mono text-xs leading-relaxed" x-ref="feed">
+            <template x-for="(msg, i) in feed" :key="i">
+              <div :class="{
+                'text-red-400':     msg.t==='finding' && msg.sev==='critical',
+                'text-orange-400':  msg.t==='finding' && msg.sev==='high',
+                'text-yellow-400':  msg.t==='finding' && msg.sev==='medium',
+                'text-emerald-400': msg.t==='finding' && msg.sev==='low',
+                'text-blue-400':    msg.t==='finding' && msg.sev==='info',
+                'text-gray-500':    msg.t==='progress',
+                'text-gray-600':    msg.t==='skip',
+                'text-emerald-600 font-semibold': msg.t==='done',
+                'text-red-500':     msg.t==='err',
+                'text-gray-400':    !msg.t,
+              }" x-text="msg.text"></div>
+            </template>
+            <div x-show="feed.length===0" class="text-gray-700 italic">Waiting for first check…</div>
+          </div>
+        </div>
+
+        <!-- Severity summary (shown on complete) -->
+        <div x-show="completed" class="px-5 pb-4 grid grid-cols-5 gap-2 text-center">
+          <div class="bg-red-950 border border-red-900 rounded-lg p-2">
+            <div class="text-red-400 font-bold text-lg" x-text="counts.critical"></div>
+            <div class="text-xs text-red-700">Critical</div>
+          </div>
+          <div class="bg-orange-950 border border-orange-900 rounded-lg p-2">
+            <div class="text-orange-400 font-bold text-lg" x-text="counts.high"></div>
+            <div class="text-xs text-orange-700">High</div>
+          </div>
+          <div class="bg-yellow-950 border border-yellow-900 rounded-lg p-2">
+            <div class="text-yellow-400 font-bold text-lg" x-text="counts.medium"></div>
+            <div class="text-xs text-yellow-800">Medium</div>
+          </div>
+          <div class="bg-emerald-950 border border-emerald-900 rounded-lg p-2">
+            <div class="text-emerald-400 font-bold text-lg" x-text="counts.low"></div>
+            <div class="text-xs text-emerald-800">Low</div>
+          </div>
+          <div class="bg-blue-950 border border-blue-900 rounded-lg p-2">
+            <div class="text-blue-400 font-bold text-lg" x-text="counts.info"></div>
+            <div class="text-xs text-blue-800">Info</div>
+          </div>
+        </div>
+
+        <!-- Footer -->
         <div class="px-5 py-3 border-t border-gray-700 flex justify-between items-center">
-          <span x-show="!completed && !errorMsg" class="text-xs text-gray-500">Scan running…</span>
+          <span x-show="running && !errorMsg" class="text-xs text-gray-500">
+            Click <strong class="text-gray-400">−</strong> to minimize — scan keeps running
+          </span>
           <span x-show="completed" class="text-xs text-emerald-400 font-medium">Scan complete</span>
           <span x-show="errorMsg" class="text-xs text-red-400" x-text="'Error: ' + errorMsg"></span>
           <div class="flex space-x-2">
@@ -210,12 +252,13 @@
                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">
               View Results
             </a>
-            <button @click="closeModal()"
-                    class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors">
-              Close
+            <button @click="running ? (open = false) : closeModal()"
+                    class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors"
+                    x-text="running ? 'Minimize' : 'Close'">
             </button>
           </div>
         </div>
+
       </div>
     </div>
   </div>
@@ -273,41 +316,74 @@
 
     function scanProgress() {
       return {
-        open:false, scanId:null, currentCheck:'', done:0, total:0,
-        feed:[], completed:false, errorMsg:'',
-        counts:{critical:0,high:0,medium:0,low:0,info:0}, ws:null,
+        open: false, running: false,
+        scanId: null, currentCheck: '', done: 0, total: 0,
+        feed: [], completed: false, errorMsg: '',
+        counts: {critical:0, high:0, medium:0, low:0, info:0}, ws: null,
+
+        _push(msg) {
+          this.feed.push(msg);
+          this.$nextTick(() => { const el = this.$refs.feed; if (el) el.scrollTop = el.scrollHeight; });
+        },
 
         startScan(payload) {
-          Object.assign(this, {open:true, scanId:null, currentCheck:'', done:0, total:0,
-            feed:[], completed:false, errorMsg:'', counts:{critical:0,high:0,medium:0,low:0,info:0}});
+          if (this.ws) { this.ws.close(); this.ws = null; }
+          Object.assign(this, {
+            open: true, running: true, scanId: null, currentCheck: '', done: 0, total: 0,
+            feed: [], completed: false, errorMsg: '', counts: {critical:0, high:0, medium:0, low:0, info:0},
+          });
           fetch('/api/scans', {
-            method:'POST', headers:{'Content-Type':'application/json'},
+            method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload),
           })
-          .then(r => { if(!r.ok) return r.text().then(t => { throw new Error(t.slice(0,200)); }); return r.json(); })
-          .then(d => { if(d.scan_id) { this.scanId=d.scan_id; this._connectWs(d.scan_id); }
-                       else { this.errorMsg = d.detail||'Failed to start scan'; } })
-          .catch(e => { this.errorMsg = String(e).replace('Error: ',''); });
+          .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t.slice(0,200)); }); return r.json(); })
+          .then(d => {
+            if (d.scan_id) { this.scanId = d.scan_id; this._connectWs(d.scan_id); }
+            else { this.errorMsg = d.detail || 'Failed to start scan'; this.running = false; }
+          })
+          .catch(e => { this.errorMsg = String(e).replace('Error: ',''); this.running = false; });
         },
 
         _connectWs(id) {
-          const proto = location.protocol==='https:'?'wss':'ws';
+          const proto = location.protocol === 'https:' ? 'wss' : 'ws';
           this.ws = new WebSocket(`${proto}://${location.host}/ws/scan/${id}`);
           const s = this;
           this.ws.onmessage = e => {
             const ev = JSON.parse(e.data);
-            if (ev.type==='progress') { s.currentCheck=ev.target?`${ev.target} → ${ev.check}`:ev.check; s.done=ev.done; s.total=ev.total; }
-            else if (ev.type==='finding') {
-              s.feed.push({text:`[${(ev.severity||'info').toUpperCase()}] ${ev.target}: ${ev.title}`, severity:ev.severity});
-              s.$nextTick(()=>{ const el=s.$refs.feed; if(el) el.scrollTop=el.scrollHeight; });
+            if (ev.type === 'progress') {
+              const label = ev.target ? `${ev.target} → ${ev.check}` : ev.check;
+              s.currentCheck = label;
+              s.done = ev.done;
+              s.total = ev.total;
+              if (ev.skipped) {
+                s._push({ t: 'skip', text: `  ⊘ ${ev.target} — out of scope` });
+              } else {
+                s._push({ t: 'progress', text: `  ▶ ${label}` });
+              }
+            } else if (ev.type === 'finding') {
+              const sev = (ev.severity || 'info').toUpperCase();
+              s._push({ t: 'finding', sev: ev.severity, text: `  [${sev}] ${ev.target}: ${ev.title}` });
+            } else if (ev.type === 'complete') {
+              s.completed = true;
+              s.running = false;
+              s.done = s.total || s.done;
+              s.currentCheck = 'Complete';
+              s.counts = {critical: ev.critical||0, high: ev.high||0, medium: ev.medium||0, low: ev.low||0, info: ev.info||0};
+              s._push({ t: 'done', text: '─── Scan complete ───' });
+            } else if (ev.type === 'error') {
+              s.errorMsg = ev.message || 'Unknown error';
+              s.running = false;
+              s._push({ t: 'err', text: `  ✖ Error: ${ev.message}` });
             }
-            else if (ev.type==='complete') { s.completed=true; s.done=s.total||s.done; s.counts={critical:ev.critical||0,high:ev.high||0,medium:ev.medium||0,low:ev.low||0,info:ev.info||0}; s.currentCheck='Done'; }
-            else if (ev.type==='error') { s.errorMsg=ev.message||'Unknown error'; }
           };
-          this.ws.onerror = () => { s.errorMsg='Connection error'; };
+          this.ws.onerror = () => { s.errorMsg = 'Connection error'; s.running = false; };
         },
 
-        closeModal() { if(this.ws){this.ws.close();this.ws=null;} this.open=false; },
+        closeModal() {
+          if (this.ws) { this.ws.close(); this.ws = null; }
+          this.open = false;
+          this.running = false;
+        },
       };
     }
 
