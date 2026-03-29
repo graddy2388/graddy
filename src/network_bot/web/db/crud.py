@@ -137,6 +137,9 @@ def get_targets(db, group_id=None, tag_id=None, enabled_only=False) -> List[Dict
                COALESCE(t.hostname, '') AS hostname,
                COALESCE(t.last_resolved_ip, '') AS last_resolved_ip,
                COALESCE(t.last_resolved_at, '') AS last_resolved_at,
+               COALESCE(t.risk_score, 0) AS risk_score,
+               COALESCE(t.last_scanned_at, '') AS last_scanned_at,
+               COALESCE(t.criticality, 'medium') AS criticality,
                g.name AS group_name, g.color AS group_color
         FROM targets t
         LEFT JOIN groups g ON g.id = t.group_id
@@ -172,6 +175,9 @@ def get_target(db, id: int) -> Optional[Dict[str, Any]]:
                COALESCE(t.hostname, '') AS hostname,
                COALESCE(t.last_resolved_ip, '') AS last_resolved_ip,
                COALESCE(t.last_resolved_at, '') AS last_resolved_at,
+               COALESCE(t.risk_score, 0) AS risk_score,
+               COALESCE(t.last_scanned_at, '') AS last_scanned_at,
+               COALESCE(t.criticality, 'medium') AS criticality,
                g.name AS group_name, g.color AS group_color
         FROM targets t
         LEFT JOIN groups g ON g.id = t.group_id
@@ -218,7 +224,8 @@ def create_target(
 
 def update_target(db, id: int, **fields) -> Optional[Dict[str, Any]]:
     allowed = {"name", "host", "group_id", "checks", "ports", "smtp_ports", "enabled", "notes",
-               "hostname", "last_resolved_ip", "last_resolved_at"}
+               "hostname", "last_resolved_ip", "last_resolved_at",
+               "risk_score", "last_scanned_at", "criticality"}
     update_fields = {k: v for k, v in fields.items() if k in allowed}
 
     for json_field in ("checks", "ports", "smtp_ports"):
@@ -235,6 +242,81 @@ def update_target(db, id: int, **fields) -> Optional[Dict[str, Any]]:
     db.execute(f"UPDATE targets SET {set_clause} WHERE id = ?", values)
     db.commit()
     return get_target(db, id)
+
+
+def update_target_risk(db, host: str, risk_score: int, last_scanned_at: str) -> None:
+    """Update risk score and last_scanned_at for a target by host address."""
+    db.execute(
+        "UPDATE targets SET risk_score = ?, last_scanned_at = ? WHERE host = ?",
+        (min(100, max(0, risk_score)), last_scanned_at, host),
+    )
+    db.commit()
+
+
+# Auto-tag rules: map sets of ports to tag names
+_PORT_TAG_RULES: List[tuple] = [
+    ({80, 443, 8080, 8443}, "web-server"),
+    ({3306, 5432, 1433, 6379, 27017, 9200, 11211}, "database"),
+    ({3389, 445}, "windows"),
+    ({22}, None),  # too generic to auto-tag
+]
+
+_OS_TAG_RULES: List[tuple] = [
+    (["windows", "microsoft", "win32", "win64"], "windows"),
+    (["linux", "ubuntu", "debian", "centos", "rhel", "fedora", "kali"], "linux"),
+    (["macos", "mac os", "darwin", "apple"], "macos"),
+]
+
+
+def auto_tag_target(db, target_id: int, open_ports: List[int], os_guess: str = "") -> List[str]:
+    """
+    Apply service/OS-inferred tags to a target. Only adds tags that don't already exist.
+    Returns list of newly added tag names.
+    """
+    if not target_id:
+        return []
+
+    open_port_set = set(int(p) for p in open_ports)
+
+    # Current tag names on this target
+    existing = {
+        row["name"]
+        for row in db.execute(
+            """SELECT tg.name FROM tags tg
+               JOIN target_tags tt ON tt.tag_id = tg.id
+               WHERE tt.target_id = ?""",
+            (target_id,),
+        ).fetchall()
+    }
+
+    suggested: set = set()
+
+    for port_set, tag_name in _PORT_TAG_RULES:
+        if tag_name and (open_port_set & port_set):
+            suggested.add(tag_name)
+
+    if os_guess:
+        os_lower = os_guess.lower()
+        for keywords, tag_name in _OS_TAG_RULES:
+            if any(kw in os_lower for kw in keywords):
+                suggested.add(tag_name)
+
+    added = []
+    for tag_name in suggested:
+        if tag_name in existing:
+            continue
+        row = db.execute("SELECT id FROM tags WHERE name = ?", (tag_name,)).fetchone()
+        if row:
+            db.execute(
+                "INSERT OR IGNORE INTO target_tags (target_id, tag_id) VALUES (?, ?)",
+                (target_id, row["id"]),
+            )
+            added.append(tag_name)
+
+    if added:
+        db.commit()
+
+    return added
 
 
 def delete_target(db, id: int) -> bool:

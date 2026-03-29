@@ -19,7 +19,7 @@ from ..db.crud import (
     get_scans, get_scan, get_scan_results,
     get_targets, add_scan_result,
     get_scan_profile, upsert_host_inventory, upsert_host_service,
-    is_in_scope,
+    is_in_scope, update_target_risk, auto_tag_target,
 )
 
 
@@ -100,6 +100,9 @@ def run_checks_for_web(
     sev_counts: Dict[str, int] = {
         "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0
     }
+
+    # Per-target severity counts for individual risk scores
+    per_target_sev: Dict[str, Dict[str, int]] = {}
 
     total_checks = sum(
         len(
@@ -204,6 +207,10 @@ def run_checks_for_web(
                     sev_val = f.severity.value if hasattr(f.severity, "value") else str(f.severity)
                     if sev_val in sev_counts:
                         sev_counts[sev_val] += 1
+                    # Per-target tracking
+                    tgt_sev = per_target_sev.setdefault(host, {"critical":0,"high":0,"medium":0,"low":0})
+                    if sev_val in tgt_sev:
+                        tgt_sev[sev_val] += 1
                     findings_list.append({
                         "title": f.title,
                         "severity": sev_val,
@@ -240,10 +247,59 @@ def run_checks_for_web(
                                 _persist_host_data(_db, host, result.metadata)
                             except Exception:
                                 pass
+
+                        # Auto-tag target based on discovered ports / OS
+                        if check_name in ("port_scan", "nmap", "subnet_scan") and result.metadata:
+                            open_ports = result.metadata.get("open_ports", [])
+                            os_guesses = result.metadata.get("os_guesses", [])
+                            os_guess = ""
+                            if os_guesses:
+                                try:
+                                    os_guess = max(os_guesses, key=lambda x: x.get("accuracy", 0)).get("name", "")
+                                except Exception:
+                                    pass
+                            t_id = target.get("id", 0)
+                            if open_ports and t_id > 0:
+                                try:
+                                    added_tags = auto_tag_target(_db, t_id, open_ports, os_guess)
+                                    if added_tags:
+                                        _put({
+                                            "type": "finding",
+                                            "target": host,
+                                            "severity": "info",
+                                            "title": f"Auto-tagged: {', '.join(added_tags)}",
+                                        })
+                                except Exception:
+                                    pass
                 except Exception:
                     pass  # don't let a DB save failure abort the scan
 
                 done += 1
+
+            # After all checks for this target: update risk score + auto-tag
+            tgt_sev = per_target_sev.get(host, {})
+            risk = min(100,
+                tgt_sev.get("critical", 0) * 40 +
+                tgt_sev.get("high", 0) * 15 +
+                tgt_sev.get("medium", 0) * 5 +
+                tgt_sev.get("low", 0) * 1
+            )
+            from datetime import datetime as _dt, timezone as _tz
+            ts_now = _dt.now(_tz.utc).isoformat()
+            try:
+                with get_db(db_path) as _db:
+                    update_target_risk(_db, host, risk, ts_now)
+                if risk > 0:
+                    _put({
+                        "type": "progress",
+                        "target": host,
+                        "check": "risk_update",
+                        "done": done,
+                        "total": total_checks,
+                        "risk_score": risk,
+                    })
+            except Exception:
+                pass
 
         with get_db(db_path) as _db:
             finish_scan(_db, scan_id, {

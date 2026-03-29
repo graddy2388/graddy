@@ -215,9 +215,12 @@ def _migrate(conn) -> None:
     # targets columns
     existing_targets = {row[1] for row in conn.execute("PRAGMA table_info(targets)")}
     for col, defn in [
-        ("hostname", "TEXT DEFAULT ''"),
+        ("hostname",         "TEXT DEFAULT ''"),
         ("last_resolved_ip", "TEXT DEFAULT ''"),
         ("last_resolved_at", "TEXT DEFAULT ''"),
+        ("risk_score",       "INTEGER DEFAULT 0"),
+        ("last_scanned_at",  "TEXT DEFAULT ''"),
+        ("criticality",      "TEXT DEFAULT 'medium'"),
     ]:
         if col not in existing_targets:
             conn.execute(f"ALTER TABLE targets ADD COLUMN {col} {defn}")
