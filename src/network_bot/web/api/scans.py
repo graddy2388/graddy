@@ -1,5 +1,5 @@
-"""
-network_bot.web.api.scans – REST endpoints for scan management and triggering.
+﻿"""
+network_bot.web.api.scans â€“ REST endpoints for scan management and triggering.
 """
 from __future__ import annotations
 
@@ -69,14 +69,14 @@ class ScanIn(BaseModel):
         return self
 
 
-# Default checks registry – new checks registered here
+# Default checks registry â€“ new checks registered here
 _DEFAULT_CHECKS = [
     "port_scan", "ssl", "http", "dns", "vuln", "smtp", "exposed_paths", "cipher"
 ]
 
 
 def _load_check_registry():
-    from ....checks import PortScanCheck, SSLCheck, HTTPCheck, DNSCheck, VulnCheck, SMTPCheck, ExposedPathsCheck, CipherCheck
+    from ...checks import PortScanCheck, SSLCheck, HTTPCheck, DNSCheck, VulnCheck, SMTPCheck, ExposedPathsCheck, CipherCheck
     registry = {
         "port_scan": PortScanCheck,
         "ssl": SSLCheck,
@@ -89,12 +89,12 @@ def _load_check_registry():
     }
     # Attempt to load optional/tool-dependent checks
     try:
-        from ....checks.nmap_scan import NmapScanCheck
+        from ...checks.nmap_scan import NmapScanCheck
         registry["nmap"] = NmapScanCheck
     except ImportError:
         pass
     try:
-        from ....checks.subnet_scan import SubnetScanCheck
+        from ...checks.subnet_scan import SubnetScanCheck
         registry["subnet_scan"] = SubnetScanCheck
     except ImportError:
         pass
@@ -154,7 +154,7 @@ def run_checks_for_web(
             host = target["host"]
             name = target.get("name", host)
 
-            # Scope check — short-lived connection
+            # Scope check â€” short-lived connection
             try:
                 with get_db(db_path) as _db:
                     resolved_ip = target.get("last_resolved_ip") or host
@@ -211,7 +211,7 @@ def run_checks_for_web(
                     try:
                         result = _fut.result(timeout=check_timeout)
                     except FuturesTimeout:
-                        from ....checks.base import CheckResult as CR
+                        from ...checks.base import CheckResult as CR
                         result = CR(
                             check_name=check_name,
                             target=host,
@@ -227,7 +227,7 @@ def run_checks_for_web(
                     finally:
                         _ex.shutdown(wait=False)
                 except Exception as exc:
-                    from ....checks.base import CheckResult as CR
+                    from ...checks.base import CheckResult as CR
                     result = CR(
                         check_name=check_name,
                         target=host,
@@ -348,7 +348,7 @@ def run_checks_for_web(
 def _persist_host_data(db, host: str, metadata: Dict) -> None:
     """Save host inventory data discovered via nmap/subnet scan to the DB."""
     if "hosts" in metadata:
-        # Subnet scan – multiple hosts
+        # Subnet scan â€“ multiple hosts
         for h in metadata["hosts"]:
             upsert_host_inventory(
                 db,
