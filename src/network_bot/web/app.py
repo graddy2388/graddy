@@ -361,6 +361,16 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "tags": tags,
         })
 
+    @app.get("/reports", response_class=HTMLResponse)
+    async def reports_page(request: Request):
+        with get_db(db_path) as db:
+            scans = get_scans(db, limit=200)
+        completed = [s for s in scans if s["status"] == "completed"]
+        return _tr(templates, request, "reports.html", {
+            "active_page": "reports",
+            "scans": completed,
+        })
+
     @app.get("/scope", response_class=HTMLResponse)
     async def scope_page(request: Request):
         with get_db(db_path) as db:

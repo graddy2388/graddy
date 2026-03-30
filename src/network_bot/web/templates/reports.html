@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Reports – Viridis{% endblock %}
+
+{% block content %}
+<div class="p-6 space-y-5"
+     x-data="{
+       filterText: '',
+       filterSev: '',
+       get filtered() {
+         var q = this.filterText.toLowerCase();
+         return scans.filter(s => {
+           var matchText = !q || String(s.id).includes(q);
+           var matchSev  = !this.filterSev ||
+             (this.filterSev === 'critical' && s.critical_count > 0) ||
+             (this.filterSev === 'high'     && s.high_count > 0)     ||
+             (this.filterSev === 'medium'   && s.medium_count > 0)   ||
+             (this.filterSev === 'clean'    && s.critical_count === 0 && s.high_count === 0 && s.medium_count === 0);
+           return matchText && matchSev;
+         });
+       },
+     }"
+     x-init="window.scans = {{ scans | tojson }}">
+
+  <div>
+    <h1 class="text-xl font-bold text-white">Reports</h1>
+    <p class="text-sm text-gray-500 mt-0.5">Export scan results as JSON, CSV, or PDF</p>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
+      <p class="text-2xl font-bold text-white">{{ scans | length }}</p>
+      <p class="text-xs text-gray-500 mt-0.5 uppercase tracking-wide">Total Reports</p>
+    </div>
+    <div class="bg-gray-900 border border-red-900/30 rounded-xl p-4 text-center">
+      <p class="text-2xl font-bold text-red-400">{{ scans | selectattr('critical_count', 'gt', 0) | list | length }}</p>
+      <p class="text-xs text-gray-500 mt-0.5 uppercase tracking-wide">With Critical</p>
+    </div>
+    <div class="bg-gray-900 border border-orange-900/30 rounded-xl p-4 text-center">
+      <p class="text-2xl font-bold text-orange-400">{{ scans | selectattr('high_count', 'gt', 0) | list | length }}</p>
+      <p class="text-xs text-gray-500 mt-0.5 uppercase tracking-wide">With High</p>
+    </div>
+    <div class="bg-gray-900 border border-emerald-900/30 rounded-xl p-4 text-center">
+      <p class="text-2xl font-bold text-emerald-400">
+        {% set clean = scans | rejectattr('critical_count', 'gt', 0) | rejectattr('high_count', 'gt', 0) | rejectattr('medium_count', 'gt', 0) | list | length %}
+        {{ clean }}
+      </p>
+      <p class="text-xs text-gray-500 mt-0.5 uppercase tracking-wide">Clean Scans</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-3 flex flex-wrap gap-3 items-center">
+    <input x-model="filterText" type="text" placeholder="Search by scan ID…"
+           class="flex-1 min-w-40 bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
+    <select x-model="filterSev"
+            class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+      <option value="">All Scans</option>
+      <option value="critical">Has Critical</option>
+      <option value="high">Has High</option>
+      <option value="medium">Has Medium</option>
+      <option value="clean">Clean (no critical/high/medium)</option>
+    </select>
+    <span class="text-xs text-gray-500" x-text="filtered.length + ' report(s)'"></span>
+  </div>
+
+  <!-- Reports table -->
+  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+    <table class="min-w-full">
+      <thead>
+        <tr class="border-b border-gray-800">
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Scan</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Targets</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Findings</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Export</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-800">
+        <template x-for="s in filtered" :key="s.id">
+          <tr class="hover:bg-gray-800 transition-colors">
+            <td class="px-4 py-3">
+              <a :href="'/scans/' + s.id" class="text-sm font-medium text-white hover:text-emerald-400 transition-colors font-mono"
+                 x-text="'#' + s.id"></a>
+              <div class="text-xs text-gray-600 mt-0.5 capitalize" x-text="s.triggered_by || 'manual'"></div>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-300" x-text="(s.started_at || '').substring(0,16).replace('T',' ')"></td>
+            <td class="px-4 py-3 text-sm text-gray-400" x-text="s.total_targets + ' target(s)'"></td>
+            <td class="px-4 py-3">
+              <div class="flex items-center space-x-2 text-xs">
+                <span x-show="s.critical_count > 0" class="px-1.5 py-0.5 rounded bg-red-950 text-red-400 font-semibold" x-text="s.critical_count + ' critical'"></span>
+                <span x-show="s.high_count > 0" class="px-1.5 py-0.5 rounded bg-orange-950 text-orange-400 font-semibold" x-text="s.high_count + ' high'"></span>
+                <span x-show="s.medium_count > 0" class="px-1.5 py-0.5 rounded bg-yellow-950 text-yellow-400 font-semibold" x-text="s.medium_count + ' medium'"></span>
+                <span x-show="s.critical_count === 0 && s.high_count === 0 && s.medium_count === 0"
+                      class="text-gray-600 text-xs">
+                  <span x-show="s.low_count > 0" x-text="s.low_count + ' low'"></span>
+                  <span x-show="s.low_count === 0">No findings</span>
+                </span>
+              </div>
+            </td>
+            <td class="px-4 py-3">
+              <div class="flex items-center space-x-1">
+
+                <!-- JSON -->
+                <a :href="'/api/export/scans/' + s.id + '/json'"
+                   title="Export as JSON"
+                   class="inline-flex items-center space-x-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                  <span>JSON</span>
+                </a>
+
+                <!-- CSV -->
+                <a :href="'/api/export/scans/' + s.id + '/csv'"
+                   title="Export as CSV"
+                   class="inline-flex items-center space-x-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                  </svg>
+                  <span>CSV</span>
+                </a>
+
+                <!-- PDF -->
+                <a :href="'/api/export/scans/' + s.id + '/pdf'"
+                   title="Export as PDF"
+                   class="inline-flex items-center space-x-1 px-2 py-1 bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-xs text-gray-300 transition-colors">
+                  <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                  </svg>
+                  <span>PDF</span>
+                </a>
+
+                <!-- View detail -->
+                <a :href="'/scans/' + s.id"
+                   title="View scan detail"
+                   class="inline-flex items-center px-2 py-1 text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                  View →
+                </a>
+
+              </div>
+            </td>
+          </tr>
+        </template>
+        <tr x-show="filtered.length === 0">
+          <td colspan="5" class="px-4 py-14 text-center text-gray-600 text-sm">
+            No completed scans found.
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Export all note -->
+  <div class="flex items-center justify-between bg-gray-900 border border-gray-800 rounded-xl px-4 py-3">
+    <div>
+      <p class="text-sm text-white font-medium">Export All</p>
+      <p class="text-xs text-gray-500 mt-0.5">Download all completed scans in a single file</p>
+    </div>
+    <a href="/api/export/scans/all/json"
+       class="flex items-center space-x-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 border border-gray-700 text-gray-300 rounded-lg text-sm transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <span>All Scans (JSON)</span>
+    </a>
+  </div>
+
+</div>
+{% endblock %}

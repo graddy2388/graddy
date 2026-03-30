@@ -19,118 +19,181 @@
       editing: null,
       form: {
         name: '',
-        cron_human: '',
-        cron_expr: '',
         target_filter: 'all',
         profile_id: null,
         enabled: true,
-        useCronHuman: true,
+        /* schedule builder */
+        mode: 'days',        /* 'days' | 'monthly' | 'advanced' */
+        hour: '02',
+        minute: '00',
+        weekdays: [1],       /* 0=Sun … 6=Sat */
+        monthDay: 1,
+        cron_expr: '',       /* advanced mode raw */
       },
 
-      presets: [
-        { label: '2nd Tuesday at 02:00', value: '2nd Tuesday at 02:00' },
-        { label: '3rd Thursday at 03:00', value: '3rd Thursday at 03:00' },
-        { label: '1st Monday at 01:00',  value: '1st Monday at 01:00'  },
-        { label: 'Every day at 02:00',   value: 'every day at 02:00'   },
-        { label: 'Every Sunday at 06:00',value: 'every Sunday at 06:00'},
-        { label: 'Every Monday at 09:00',value: 'every Monday at 09:00'},
-      ],
+      /* ---- computed cron expression from visual builder ---- */
+      get builtCron() {
+        var h = this.form.hour, m = this.form.minute;
+        if (this.form.mode === 'days') {
+          var days = this.form.weekdays.slice().sort().join(',');
+          if (days === '0,1,2,3,4,5,6' || days === '') return m + ' ' + h + ' * * *';
+          return m + ' ' + h + ' * * ' + days;
+        }
+        if (this.form.mode === 'monthly') {
+          return m + ' ' + h + ' ' + this.form.monthDay + ' * *';
+        }
+        return this.form.cron_expr;
+      },
+
+      get humanPreview() {
+        var h = parseInt(this.form.hour), m = parseInt(this.form.minute);
+        var time = this._pad(h) + ':' + this._pad(m);
+        if (this.form.mode === 'advanced') return 'Cron: ' + this.form.cron_expr;
+        if (this.form.mode === 'monthly') return 'Monthly on day ' + this.form.monthDay + ' at ' + time;
+        var DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+        var sel = this.form.weekdays.slice().sort();
+        if (sel.length === 0 || sel.length === 7) return 'Every day at ' + time;
+        return 'Every ' + sel.map(d => DAY_NAMES[d]).join(', ') + ' at ' + time;
+      },
+
+      _pad(n) { return n < 10 ? '0' + n : '' + n; },
+
+      toggleWeekday(d) {
+        var idx = this.form.weekdays.indexOf(d);
+        if (idx >= 0) this.form.weekdays.splice(idx, 1); else this.form.weekdays.push(d);
+      },
+
+      hasWeekday(d) { return this.form.weekdays.includes(d); },
 
       openAdd() {
         this.editing = null;
-        this.form = { name:'', cron_human:'', cron_expr:'', target_filter:'all', profile_id:null, enabled:true, useCronHuman:true };
+        this.form = { name:'', target_filter:'all', profile_id:null, enabled:true,
+                      mode:'days', hour:'02', minute:'00', weekdays:[1], monthDay:1, cron_expr:'' };
         this.showModal = true;
       },
 
       openEdit(s) {
         this.editing = s.id;
+        /* Parse stored cron to reconstruct visual form */
+        var parsed = this._parseCron(s.cron_expr || '');
         this.form = {
           name: s.name,
-          cron_human: s.cron_human || '',
-          cron_expr: s.cron_expr || '',
           target_filter: s.target_filter || 'all',
           profile_id: s.profile_id || null,
           enabled: !!s.enabled,
-          useCronHuman: !!(s.cron_human),
+          mode: parsed.mode,
+          hour: parsed.hour,
+          minute: parsed.minute,
+          weekdays: parsed.weekdays,
+          monthDay: parsed.monthDay,
+          cron_expr: s.cron_expr || '',
         };
         this.showModal = true;
       },
 
+      _parseCron(expr) {
+        /* Try to reconstruct visual mode from a cron expr */
+        var defaults = { mode:'advanced', hour:'02', minute:'00', weekdays:[1], monthDay:1 };
+        if (!expr) return defaults;
+        var parts = expr.trim().split(/\s+/);
+        if (parts.length !== 5) return { ...defaults, cron_expr: expr };
+        var [min, hr, dom, mon, dow] = parts;
+        /* Daily / specific weekdays */
+        if (dom === '*' && mon === '*') {
+          if (dow === '*') {
+            return { mode:'days', hour:this._pad(parseInt(hr)||0), minute:this._pad(parseInt(min)||0), weekdays:[], monthDay:1 };
+          }
+          try {
+            var days = dow.split(',').map(Number);
+            return { mode:'days', hour:this._pad(parseInt(hr)||0), minute:this._pad(parseInt(min)||0), weekdays:days, monthDay:1 };
+          } catch(e) {}
+        }
+        /* Monthly */
+        if (dow === '*' && mon === '*' && !isNaN(parseInt(dom))) {
+          return { mode:'monthly', hour:this._pad(parseInt(hr)||0), minute:this._pad(parseInt(min)||0), weekdays:[1], monthDay:parseInt(dom) };
+        }
+        return { ...defaults, cron_expr: expr };
+      },
+
       async save() {
-        const payload = {
+        if (!this.form.name.trim()) { alert('Schedule name is required.'); return; }
+        var cron = this.builtCron;
+        if (!cron.trim()) { alert('Please configure a schedule.'); return; }
+        var payload = {
           name: this.form.name,
           target_filter: this.form.target_filter,
           profile_id: this.form.profile_id ? parseInt(this.form.profile_id) : null,
           enabled: this.form.enabled,
+          cron_expr: cron,
+          cron_human: this.humanPreview,
         };
-        if (this.form.useCronHuman) {
-          payload.cron_human = this.form.cron_human;
-        } else {
-          payload.cron_expr = this.form.cron_expr;
-        }
-        const url = this.editing ? `/api/schedules/${this.editing}` : '/api/schedules';
-        const method = this.editing ? 'PUT' : 'POST';
-        const resp = await fetch(url, {
+        var url = this.editing ? '/api/schedules/' + this.editing : '/api/schedules';
+        var method = this.editing ? 'PUT' : 'POST';
+        var resp = await fetch(url, {
           method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload),
         });
         if (resp.ok) {
-          const s = await resp.json();
+          var s = await resp.json();
           if (this.editing) {
-            const idx = this.schedules.findIndex(x => x.id === this.editing);
+            var idx = this.schedules.findIndex(x => x.id === this.editing);
             if (idx >= 0) this.schedules[idx] = s;
           } else {
             this.schedules.push(s);
           }
           this.showModal = false;
         } else {
-          const err = await resp.json();
+          var err = await resp.json();
           alert(err.detail || 'Save failed');
         }
       },
 
       async toggle(s) {
-        const resp = await fetch(`/api/schedules/${s.id}/toggle`, { method: 'POST' });
+        var resp = await fetch('/api/schedules/' + s.id + '/toggle', { method: 'POST' });
         if (resp.ok) {
-          const updated = await resp.json();
-          const idx = this.schedules.findIndex(x => x.id === s.id);
+          var updated = await resp.json();
+          var idx = this.schedules.findIndex(x => x.id === s.id);
           if (idx >= 0) this.schedules[idx] = updated;
         }
       },
 
       async deleteSchedule(id) {
         if (!confirm('Delete this schedule?')) return;
-        const resp = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+        var resp = await fetch('/api/schedules/' + id, { method: 'DELETE' });
         if (resp.ok) this.schedules = this.schedules.filter(s => s.id !== id);
       },
 
       filterLabel(filter) {
         if (!filter || filter === 'all') return 'All targets';
         if (filter.startsWith('group:')) {
-          const gid = parseInt(filter.split(':')[1]);
-          const g = this.groups.find(x => x.id === gid);
+          var gid = parseInt(filter.split(':')[1]);
+          var g = this.groups.find(x => x.id === gid);
           return g ? 'Group: ' + g.name : filter;
         }
         if (filter.startsWith('tag:')) {
-          const tid = parseInt(filter.split(':')[1]);
-          const t = this.tags.find(x => x.id === tid);
+          var tid = parseInt(filter.split(':')[1]);
+          var t = this.tags.find(x => x.id === tid);
           return t ? 'Tag: ' + t.name : filter;
         }
         return filter;
       },
+
+      hours: Array.from({length:24},(_,i)=>String(i).padStart(2,'0')),
+      minutes: ['00','15','30','45'],
+      monthDays: Array.from({length:28},(_,i)=>i+1),
     };
   };
 })();
 </script>
 
-<div class="p-8 space-y-6" x-data="schedulesApp()">
+<div class="p-6 space-y-5" x-data="schedulesApp()">
 
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Schedules</h1>
-      <p class="text-gray-500 text-sm mt-1">Persistent scan schedules — survive container restarts</p>
+      <h1 class="text-xl font-bold text-white">Schedules</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Persistent scan schedules — survive container restarts</p>
     </div>
     <button @click="openAdd()"
-            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
       </svg>
@@ -139,129 +202,202 @@
   </div>
 
   <!-- Table -->
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profile</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Run</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-          <th class="px-6 py-3"></th>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+    <table class="min-w-full">
+      <thead>
+        <tr class="border-b border-gray-800">
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Schedule</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Targets</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Profile</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Run</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+          <th class="px-4 py-3"></th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-200">
+      <tbody class="divide-y divide-gray-800">
         <template x-for="s in schedules" :key="s.id">
-          <tr class="hover:bg-gray-50">
-            <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="s.name"></td>
-            <td class="px-6 py-4">
-              <div class="text-sm text-gray-700" x-text="s.cron_human || s.cron_expr"></div>
-              <div class="text-xs text-gray-400 font-mono" x-show="s.cron_human" x-text="s.cron_expr"></div>
+          <tr class="hover:bg-gray-800 transition-colors">
+            <td class="px-4 py-3 text-sm font-medium text-white" x-text="s.name"></td>
+            <td class="px-4 py-3">
+              <div class="text-sm text-gray-300" x-text="s.cron_human || s.cron_expr"></div>
+              <div class="text-xs text-gray-600 font-mono mt-0.5" x-show="s.cron_human && s.cron_expr" x-text="s.cron_expr"></div>
             </td>
-            <td class="px-6 py-4 text-sm text-gray-600" x-text="filterLabel(s.target_filter)"></td>
-            <td class="px-6 py-4 text-sm text-gray-500" x-text="s.profile_name || '—'"></td>
-            <td class="px-6 py-4 text-xs text-gray-400" x-text="(s.last_run || '—').substring(0,16).replace('T',' ')"></td>
-            <td class="px-6 py-4">
+            <td class="px-4 py-3 text-sm text-gray-400" x-text="filterLabel(s.target_filter)"></td>
+            <td class="px-4 py-3 text-sm text-gray-500" x-text="s.profile_name || '—'"></td>
+            <td class="px-4 py-3 text-xs text-gray-500 font-mono" x-text="(s.last_run || '—').substring(0,16).replace('T',' ')"></td>
+            <td class="px-4 py-3">
               <button @click="toggle(s)">
                 <span x-show="s.enabled"
-                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  <span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 animate-pulse"></span>
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-950 text-emerald-400">
+                  <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1.5 animate-pulse"></span>
                   Active
                 </span>
                 <span x-show="!s.enabled"
-                      class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
+                      class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-500">
                   Paused
                 </span>
               </button>
             </td>
-            <td class="px-6 py-4 flex space-x-2">
-              <button @click="openEdit(s)" class="text-xs text-indigo-600 hover:text-indigo-800">Edit</button>
-              <button @click="deleteSchedule(s.id)" class="text-xs text-red-500 hover:text-red-700">Delete</button>
+            <td class="px-4 py-3">
+              <div class="flex items-center space-x-3">
+                <button @click="openEdit(s)" class="text-xs text-gray-400 hover:text-white transition-colors">Edit</button>
+                <button @click="deleteSchedule(s.id)" class="text-xs text-red-500 hover:text-red-400 transition-colors">Delete</button>
+              </div>
             </td>
           </tr>
         </template>
         <tr x-show="schedules.length === 0">
-          <td colspan="7" class="px-6 py-12 text-center text-gray-400 text-sm">No schedules configured.</td>
+          <td colspan="7" class="px-4 py-14 text-center text-gray-600 text-sm">
+            No schedules configured. Click <strong class="text-gray-400">New Schedule</strong> to create one.
+          </td>
         </tr>
       </tbody>
     </table>
   </div>
 
-  <!-- Modal -->
+  <!-- ====== Schedule Modal ====== -->
   <div x-show="showModal" x-cloak
-       class="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50"
-       x-transition>
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-lg mx-4">
-      <div class="px-6 py-4 border-b flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-gray-900" x-text="editing ? 'Edit Schedule' : 'New Schedule'"></h3>
-        <button @click="showModal = false" class="text-gray-400 hover:text-gray-600">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+       class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70"
+       @click.self="showModal = false">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+
+      <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between sticky top-0 bg-gray-900 z-10">
+        <h3 class="text-sm font-semibold text-white" x-text="editing ? 'Edit Schedule' : 'New Schedule'"></h3>
+        <button @click="showModal = false" class="text-gray-500 hover:text-gray-300 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
       </div>
-      <div class="px-6 py-4 space-y-4">
 
+      <div class="px-5 py-4 space-y-5">
+
+        <!-- Name -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Name *</label>
-          <input x-model="form.name" type="text" placeholder="e.g. Monthly Full Scan"
-                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+          <label class="block text-xs text-gray-400 mb-1.5">Schedule Name *</label>
+          <input x-model="form.name" type="text" placeholder="e.g. Weekly Perimeter Scan"
+                 maxlength="120"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
         </div>
 
-        <!-- Schedule type toggle -->
-        <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Schedule</label>
-          <div class="flex rounded-lg border border-gray-300 overflow-hidden text-sm mb-3">
-            <button @click="form.useCronHuman = true"
-                    :class="form.useCronHuman ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
-                    class="flex-1 py-2 px-3 transition-colors">Human-readable</button>
-            <button @click="form.useCronHuman = false"
-                    :class="!form.useCronHuman ? 'bg-emerald-600 text-white' : 'text-gray-600 hover:bg-gray-50'"
-                    class="flex-1 py-2 px-3 transition-colors">Cron expression</button>
+        <!-- ========== SCHEDULE BUILDER ========== -->
+        <div class="space-y-3">
+          <label class="block text-xs text-gray-400">Schedule</label>
+
+          <!-- Mode selector -->
+          <div class="grid grid-cols-3 gap-2">
+            <button @click="form.mode = 'days'"
+                    :class="form.mode === 'days' ? 'bg-emerald-700 border-emerald-600 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'"
+                    class="border rounded-lg px-3 py-2 text-xs font-medium transition-colors text-center">
+              <svg class="w-4 h-4 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+              Weekly
+            </button>
+            <button @click="form.mode = 'monthly'"
+                    :class="form.mode === 'monthly' ? 'bg-emerald-700 border-emerald-600 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'"
+                    class="border rounded-lg px-3 py-2 text-xs font-medium transition-colors text-center">
+              <svg class="w-4 h-4 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+              </svg>
+              Monthly
+            </button>
+            <button @click="form.mode = 'advanced'"
+                    :class="form.mode === 'advanced' ? 'bg-emerald-700 border-emerald-600 text-white' : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'"
+                    class="border rounded-lg px-3 py-2 text-xs font-medium transition-colors text-center">
+              <svg class="w-4 h-4 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/>
+              </svg>
+              Advanced
+            </button>
           </div>
 
-          <div x-show="form.useCronHuman" class="space-y-2">
-            <div class="flex flex-wrap gap-2 mb-2">
-              <template x-for="p in presets" :key="p.value">
-                <button @click="form.cron_human = p.value"
-                        :class="form.cron_human === p.value ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'bg-gray-50 text-gray-600 border-gray-200'"
-                        class="border rounded px-2 py-1 text-xs"
-                        x-text="p.label"></button>
+          <!-- WEEKLY mode: day picker -->
+          <div x-show="form.mode === 'days'" class="space-y-3">
+            <p class="text-xs text-gray-500">Select days to run the scan</p>
+            <div class="flex space-x-1.5">
+              <template x-for="[idx, label] in [['0','Sun'],['1','Mon'],['2','Tue'],['3','Wed'],['4','Thu'],['5','Fri'],['6','Sat']]" :key="idx">
+                <button @click="toggleWeekday(parseInt(idx))"
+                        :class="hasWeekday(parseInt(idx)) ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500'"
+                        class="flex-1 border rounded-lg py-2 text-xs font-medium transition-colors"
+                        x-text="label">
+                </button>
               </template>
             </div>
-            <input x-model="form.cron_human" type="text"
-                   placeholder="e.g. 2nd Tuesday at 02:00"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
           </div>
 
-          <div x-show="!form.useCronHuman">
+          <!-- MONTHLY mode: day of month -->
+          <div x-show="form.mode === 'monthly'" class="space-y-2">
+            <p class="text-xs text-gray-500">Run on day of month</p>
+            <div class="flex flex-wrap gap-1.5">
+              <template x-for="d in monthDays" :key="d">
+                <button @click="form.monthDay = d"
+                        :class="form.monthDay === d ? 'bg-emerald-600 text-white border-emerald-500' : 'bg-gray-800 text-gray-400 border-gray-700 hover:border-gray-500'"
+                        class="w-9 h-9 border rounded-lg text-xs font-medium transition-colors"
+                        x-text="d">
+                </button>
+              </template>
+            </div>
+          </div>
+
+          <!-- ADVANCED mode: raw cron -->
+          <div x-show="form.mode === 'advanced'" class="space-y-1.5">
             <input x-model="form.cron_expr" type="text"
-                   placeholder="0 2 8-14 * 2   (min hour dom month dow)"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500">
-            <p class="text-xs text-gray-400 mt-1">Standard 5-field cron. Example: <code class="font-mono">0 2 * * 2</code> = every Tuesday at 02:00</p>
+                   placeholder="0 2 * * 1  (minute hour dom month weekday)"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500">
+            <p class="text-xs text-gray-600">Standard 5-field cron. Example: <code class="text-gray-500 font-mono">0 2 * * 1</code> = every Monday at 02:00</p>
+          </div>
+
+          <!-- Time picker (shown for weekly + monthly) -->
+          <div x-show="form.mode !== 'advanced'" class="flex items-center space-x-3">
+            <label class="text-xs text-gray-400 whitespace-nowrap">Run at</label>
+            <select x-model="form.hour"
+                    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <template x-for="h in hours" :key="h">
+                <option :value="h" x-text="h"></option>
+              </template>
+            </select>
+            <span class="text-gray-500 font-semibold">:</span>
+            <select x-model="form.minute"
+                    class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <template x-for="m in minutes" :key="m">
+                <option :value="m" x-text="m"></option>
+              </template>
+            </select>
+            <span class="text-xs text-gray-600">(24h)</span>
+          </div>
+
+          <!-- Preview -->
+          <div class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 flex items-center justify-between">
+            <span class="text-xs text-gray-400" x-text="humanPreview"></span>
+            <code class="text-xs text-gray-600 font-mono" x-text="builtCron"></code>
           </div>
         </div>
 
+        <!-- Target filter -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Target Filter</label>
+          <label class="block text-xs text-gray-400 mb-1.5">Target Filter</label>
           <select x-model="form.target_filter"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
             <option value="all">All enabled targets</option>
             <template x-for="g in groups" :key="'g'+g.id">
-              <option :value="'group:'+g.id" x-text="'Group: '+g.name"></option>
+              <option :value="'group:'+g.id" x-text="'Group: ' + g.name"></option>
             </template>
             <template x-for="t in tags" :key="'t'+t.id">
-              <option :value="'tag:'+t.id" x-text="'Tag: '+t.name"></option>
+              <option :value="'tag:'+t.id" x-text="'Tag: ' + t.name"></option>
             </template>
           </select>
         </div>
 
+        <!-- Scan profile -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Scan Profile (optional)</label>
+          <label class="block text-xs text-gray-400 mb-1.5">Scan Profile</label>
           <select x-model="form.profile_id"
-                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
             <option value="">Default (target settings)</option>
             <template x-for="p in profiles" :key="p.id">
               <option :value="p.id" x-text="p.name"></option>
@@ -269,25 +405,24 @@
           </select>
         </div>
 
-        <div class="flex items-center space-x-3">
-          <button @click="form.enabled = !form.enabled"
-                  :class="form.enabled ? 'bg-emerald-600' : 'bg-gray-200'"
-                  class="relative inline-flex h-6 w-11 items-center rounded-full transition-colors">
-            <span :class="form.enabled ? 'translate-x-6' : 'translate-x-1'"
-                  class="inline-block h-4 w-4 transform rounded-full bg-white transition-transform"></span>
+        <!-- Enabled -->
+        <label class="flex items-center space-x-3 cursor-pointer">
+          <button type="button" @click="form.enabled = !form.enabled"
+                  :class="form.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                  class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors">
+            <span :class="form.enabled ? 'translate-x-4' : 'translate-x-1'"
+                  class="inline-block h-3.5 w-3.5 rounded-full bg-white transition-transform shadow"></span>
           </button>
-          <span class="text-sm text-gray-700" x-text="form.enabled ? 'Enabled' : 'Paused'"></span>
-        </div>
+          <span class="text-xs text-gray-400" x-text="form.enabled ? 'Active — schedule will run' : 'Paused — schedule will not run'"></span>
+        </label>
 
       </div>
-      <div class="px-6 py-4 border-t flex justify-end space-x-3">
+
+      <div class="px-5 py-4 border-t border-gray-700 flex justify-end space-x-3">
         <button @click="showModal = false"
-                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Cancel</button>
         <button @click="save()"
-                :disabled="!form.name || (!form.cron_human && !form.cron_expr)"
-                class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50">
-          Save Schedule
-        </button>
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">Save Schedule</button>
       </div>
     </div>
   </div>
