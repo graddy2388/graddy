@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
+from ..validation import validate_host_path_segment
 from ..db.crud import (
     get_host_inventory, get_host_services, get_host_identities,
     get_scan_results,
@@ -20,15 +21,27 @@ def make_router(get_db_dep) -> APIRouter:
 
     @r.get("/{ip}/services")
     def host_services(ip: str, db=Depends(get_db_dep)):
+        try:
+            ip = validate_host_path_segment(ip)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         return get_host_services(db, ip)
 
     @r.get("/{ip}/identities")
     def host_identities(ip: str, db=Depends(get_db_dep)):
+        try:
+            ip = validate_host_path_segment(ip)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         return get_host_identities(db, ip)
 
     @r.get("/{ip}/findings")
     def host_findings(ip: str, db=Depends(get_db_dep)):
         """Return all scan findings for a specific host IP across all scans."""
+        try:
+            ip = validate_host_path_segment(ip)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         cur = db.execute(
             """
             SELECT sr.*, s.started_at AS scan_started_at, s.status AS scan_status

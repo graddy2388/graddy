@@ -3,22 +3,32 @@ network_bot.web.api.groups – REST endpoints for group management.
 """
 from __future__ import annotations
 
-from typing import Optional
-
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from ..db.crud import (
     get_groups, get_group, create_group, update_group, delete_group,
 )
-
-router = APIRouter(prefix="/api/groups", tags=["groups"])
+from ..validation import MAX_DESC_LEN, MAX_GROUP_TAG_NAME, validate_color_hex
 
 
 class GroupIn(BaseModel):
     name: str
     description: str = ""
     color: str = "#6366f1"
+
+    model_config = {"extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _validate(self) -> GroupIn:
+        if not self.name.strip():
+            raise ValueError("name is required")
+        if len(self.name) > MAX_GROUP_TAG_NAME:
+            raise ValueError("name is too long")
+        if len(self.description) > MAX_DESC_LEN:
+            raise ValueError("description is too long")
+        validate_color_hex(self.color)
+        return self
 
 
 def make_router(get_db_dep) -> APIRouter:
@@ -31,13 +41,18 @@ def make_router(get_db_dep) -> APIRouter:
     @r.post("", status_code=201)
     def create(body: GroupIn, db=Depends(get_db_dep)):
         try:
-            return create_group(db, body.name, body.description, body.color)
+            return create_group(db, body.name.strip(), body.description, body.color)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @r.put("/{id}")
     def update(id: int, body: GroupIn, db=Depends(get_db_dep)):
-        result = update_group(db, id, body.name, body.description, body.color)
+        try:
+            result = update_group(db, id, body.name.strip(), body.description, body.color)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         if result is None:
             raise HTTPException(status_code=404, detail="Group not found")
         return result

@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response, StreamingResponse
 
 from ..db.crud import get_scan, get_scan_results, get_scans
+from ..validation import MAX_EXPORT_LIMIT, clamp_limit
 
 
 def _flatten_findings(scan: Dict, results: List[Dict]) -> List[Dict]:
@@ -193,6 +194,7 @@ def make_router(get_db_dep) -> APIRouter:
 
     @r.get("/scans/all/json")
     def export_all_json(limit: int = 50, db=Depends(get_db_dep)):
+        limit = clamp_limit(limit, default=50, cap=MAX_EXPORT_LIMIT)
         scans = get_scans(db, limit=limit)
         return Response(
             content=json.dumps({"scans": scans}, indent=2),

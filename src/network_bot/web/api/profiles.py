@@ -6,11 +6,20 @@ from __future__ import annotations
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from ..db.crud import (
     get_scan_profiles, get_scan_profile,
     create_scan_profile, update_scan_profile, delete_scan_profile,
+)
+from ..validation import (
+    MAX_DESC_LEN,
+    MAX_NAME_LEN,
+    VALID_INTENSITIES,
+    VALID_PROFILE_TOOLS,
+    validate_checks,
+    validate_nmap_args,
+    validate_ports,
 )
 
 
@@ -23,6 +32,27 @@ class ProfileIn(BaseModel):
     nmap_args: str = "-sV -sC --top-ports 1000 -T4"
     tools: List[str] = ["nmap"]
     intensity: str = "normal"
+
+    model_config = {"extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _validate(self) -> ProfileIn:
+        if not self.name.strip():
+            raise ValueError("name is required")
+        if len(self.name) > MAX_NAME_LEN:
+            raise ValueError(f"name must be {MAX_NAME_LEN} characters or fewer")
+        if len(self.description) > MAX_DESC_LEN:
+            raise ValueError(f"description must be {MAX_DESC_LEN} characters or fewer")
+        validate_checks(self.checks, allow_empty=False)
+        validate_ports(self.ports)
+        validate_ports(self.smtp_ports)
+        validate_nmap_args(self.nmap_args)
+        for t in self.tools:
+            if t not in VALID_PROFILE_TOOLS:
+                raise ValueError(f"unknown tool: {t!r}")
+        if self.intensity not in VALID_INTENSITIES:
+            raise ValueError("intensity must be stealth, normal, or aggressive")
+        return self
 
 
 def make_router(get_db_dep) -> APIRouter:
@@ -44,7 +74,7 @@ def make_router(get_db_dep) -> APIRouter:
         try:
             return create_scan_profile(
                 db,
-                name=body.name,
+                name=body.name.strip(),
                 description=body.description,
                 checks=body.checks,
                 ports=body.ports,
@@ -53,22 +83,27 @@ def make_router(get_db_dep) -> APIRouter:
                 tools=body.tools,
                 intensity=body.intensity,
             )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @r.put("/{id}")
     def update(id: int, body: ProfileIn, db=Depends(get_db_dep)):
-        result = update_scan_profile(
-            db, id,
-            name=body.name,
-            description=body.description,
-            checks=body.checks,
-            ports=body.ports,
-            smtp_ports=body.smtp_ports,
-            nmap_args=body.nmap_args,
-            tools=body.tools,
-            intensity=body.intensity,
-        )
+        try:
+            result = update_scan_profile(
+                db, id,
+                name=body.name.strip(),
+                description=body.description,
+                checks=body.checks,
+                ports=body.ports,
+                smtp_ports=body.smtp_ports,
+                nmap_args=body.nmap_args,
+                tools=body.tools,
+                intensity=body.intensity,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         if result is None:
             raise HTTPException(status_code=404, detail="Profile not found")
         return result

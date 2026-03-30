@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import logging
 import re
+import shlex
 import shutil
 import subprocess
 import tempfile
 import xml.etree.ElementTree as ET
 from typing import Dict, List, Optional, Tuple
 
+from ..web.validation import validate_nmap_args
 from .base import BaseCheck, CheckResult, Finding, Severity
 
 logger = logging.getLogger(__name__)
@@ -48,7 +50,8 @@ def _run_nmap(host: str, nmap_args: str, timeout: int = 120) -> Optional[str]:
     with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as f:
         output_file = f.name
 
-    cmd = ["nmap"] + nmap_args.split() + ["-oX", output_file, host]
+    extra = shlex.split(nmap_args, posix=True) if nmap_args.strip() else []
+    cmd = ["nmap"] + extra + ["-oX", output_file, host]
     logger.info("Running nmap: %s", " ".join(cmd))
     try:
         subprocess.run(
@@ -168,7 +171,16 @@ class NmapScanCheck(BaseCheck):
                 error="nmap binary not found – install nmap in the container",
             )
 
-        nmap_args = target.get("nmap_args") or self.config.get("nmap", {}).get("args", "-sV -sC --top-ports 1000 -T4")
+        raw_args = target.get("nmap_args") or self.config.get("nmap", {}).get("args", "-sV -sC --top-ports 1000 -T4")
+        try:
+            nmap_args = validate_nmap_args(str(raw_args))
+        except ValueError as exc:
+            return CheckResult(
+                check_name=self.name,
+                target=host,
+                passed=False,
+                error=f"Invalid nmap arguments: {exc}",
+            )
         timeout = int(self.config.get("nmap", {}).get("timeout", 180))
 
         xml_out = _run_nmap(host, nmap_args, timeout=timeout)

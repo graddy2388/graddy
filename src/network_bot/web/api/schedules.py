@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from ..db.crud import (
     get_schedules, get_schedule,
@@ -14,6 +14,11 @@ from ..db.crud import (
 )
 from ..scheduler_service import (
     cron_human_to_expr, register_schedule, remove_schedule,
+)
+from ..validation import (
+    MAX_CRON_FIELD_LEN,
+    MAX_SCHEDULE_NAME,
+    validate_target_filter,
 )
 
 
@@ -24,6 +29,19 @@ class ScheduleIn(BaseModel):
     target_filter: str = "all"
     profile_id: Optional[int] = None
     enabled: bool = True
+
+    model_config = {"extra": "ignore"}
+
+    @model_validator(mode="after")
+    def _validate(self) -> ScheduleIn:
+        if not self.name.strip():
+            raise ValueError("name is required")
+        if len(self.name) > MAX_SCHEDULE_NAME:
+            raise ValueError("name is too long")
+        if len(self.cron_expr) > MAX_CRON_FIELD_LEN or len(self.cron_human) > MAX_CRON_FIELD_LEN:
+            raise ValueError("cron field is too long")
+        validate_target_filter(self.target_filter)
+        return self
 
 
 def make_router(get_db_dep, config: Dict[str, Any], db_path: str, scheduler) -> APIRouter:
