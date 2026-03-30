@@ -535,6 +535,55 @@ def get_scan_results(db, scan_id: int) -> List[Dict[str, Any]]:
     return rows
 
 
+def diff_scans(db, scan_id_a: int, scan_id_b: int) -> Dict[str, Any]:
+    """Compare two scans and return new, resolved, and unchanged findings.
+
+    A finding's identity is (target_host, check_name, severity, title).
+    New      = in A but not B  (appeared)
+    Resolved = in B but not A  (gone)
+    Unchanged = in both
+    """
+
+    def _extract(scan_id: int) -> Dict[str, Dict[str, Any]]:
+        cur = db.execute(
+            "SELECT target_host, target_name, check_name, findings FROM scan_results WHERE scan_id = ?",
+            (scan_id,),
+        )
+        findings: Dict[str, Dict[str, Any]] = {}
+        for row in cur.fetchall():
+            try:
+                fs = json.loads(row["findings"]) if isinstance(row["findings"], str) else (row["findings"] or [])
+            except Exception:
+                fs = []
+            for f in fs:
+                key = f"{row['target_host']}::{row['check_name']}::{f.get('severity','info')}::{f.get('title','')}"
+                findings[key] = {
+                    "target": row["target_host"],
+                    "target_name": row["target_name"] or row["target_host"],
+                    "check": row["check_name"],
+                    "severity": f.get("severity", "info"),
+                    "title": f.get("title", ""),
+                    "recommendation": f.get("recommendation", ""),
+                }
+        return findings
+
+    a_findings = _extract(scan_id_a)
+    b_findings = _extract(scan_id_b)
+    a_keys = set(a_findings)
+    b_keys = set(b_findings)
+
+    SEV = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
+    def _sort(items):
+        return sorted(items, key=lambda x: (SEV.get(x["severity"], 5), x["target"], x["check"]))
+
+    return {
+        "new":       _sort([a_findings[k] for k in a_keys - b_keys]),
+        "resolved":  _sort([b_findings[k] for k in b_keys - a_keys]),
+        "unchanged": _sort([a_findings[k] for k in a_keys & b_keys]),
+    }
+
+
 def get_dashboard_stats(db) -> dict:
     cur = db.execute(
         "SELECT id FROM scans WHERE status = 'completed' ORDER BY started_at DESC LIMIT 10"

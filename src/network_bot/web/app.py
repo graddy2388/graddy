@@ -6,7 +6,7 @@ from __future__ import annotations
 import asyncio
 import sqlite3
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
@@ -16,7 +16,7 @@ from .db.crud import (
     get_scans, get_targets, get_groups, get_tags, get_scan, get_scan_results,
     get_scan_profiles, get_schedules, get_scope_ranges,
     get_host_inventory, get_host_services, get_host_identities,
-    get_ai_events,
+    get_ai_events, diff_scans,
 )
 import json as _json
 from .db.schema import get_db
@@ -243,6 +243,31 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "results": results,
             "unique_targets": unique_targets,
             "unique_checks": unique_checks,
+        })
+
+    @app.get("/scans/{id}/diff", response_class=HTMLResponse)
+    async def scan_diff(request: Request, id: int, compare_to: Optional[int] = None):
+        with get_db(db_path) as db:
+            scan_a = get_scan(db, id)
+            if scan_a is None:
+                return HTMLResponse("Scan not found", status_code=404)
+            # All completed scans except the current one, for the selector
+            all_scans = [s for s in get_scans(db, limit=200)
+                         if s["id"] != id and s["status"] == "completed"]
+            diff = None
+            scan_b = None
+            if compare_to is not None:
+                scan_b = get_scan(db, compare_to)
+                if scan_b:
+                    diff = diff_scans(db, id, compare_to)
+
+        return _tr(templates, request, "scan_diff.html", {
+            "active_page": "scans",
+            "scan_a": scan_a,
+            "scan_b": scan_b,
+            "diff": diff,
+            "compare_to": compare_to,
+            "all_scans": all_scans,
         })
 
     @app.get("/hosts", response_class=HTMLResponse)

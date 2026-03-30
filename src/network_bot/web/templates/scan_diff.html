@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block title %}Scan Diff – Viridis{% endblock %}
+
+{% block content %}
+<div class="p-6 space-y-6"
+     x-data="{
+       tab: 'new',
+       compareId: '{{ compare_to or '' }}',
+     }">
+
+  <!-- ====================================================================
+       Header
+  ===================================================================== -->
+  <div class="flex items-start justify-between">
+    <div class="flex items-center space-x-3">
+      <a href="/scans/{{ scan_a.id }}"
+         class="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+        </svg>
+      </a>
+      <div>
+        <h1 class="text-xl font-bold text-white flex items-center space-x-2">
+          <span>Scan #{{ scan_a.id }}</span>
+          <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+          </svg>
+          {% if scan_b %}
+            <span>Scan #{{ scan_b.id }}</span>
+          {% else %}
+            <span class="text-gray-600">Select scan…</span>
+          {% endif %}
+        </h1>
+        <p class="text-xs text-gray-500 mt-0.5">
+          Scan #{{ scan_a.id }}: {{ scan_a.started_at[:16].replace('T', ' ') }}
+          {% if scan_b %}
+            &nbsp;·&nbsp; Scan #{{ scan_b.id }}: {{ scan_b.started_at[:16].replace('T', ' ') }}
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    <!-- Comparison selector -->
+    <form method="get" action="/scans/{{ scan_a.id }}/diff" class="flex items-center space-x-2">
+      <label class="text-xs text-gray-500 whitespace-nowrap">Compare against</label>
+      <select name="compare_to"
+              class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        <option value="">— pick a scan —</option>
+        {% for s in all_scans %}
+        <option value="{{ s.id }}" {% if compare_to == s.id %}selected{% endif %}>
+          #{{ s.id }} – {{ s.started_at[:16].replace('T',' ') }}
+          (C:{{ s.critical_count }} H:{{ s.high_count }} M:{{ s.medium_count }})
+        </option>
+        {% endfor %}
+      </select>
+      <button type="submit"
+              class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">
+        Compare
+      </button>
+    </form>
+  </div>
+
+  {% if diff %}
+
+  <!-- ====================================================================
+       Summary cards
+  ===================================================================== -->
+  <div class="grid grid-cols-3 gap-4">
+    <button @click="tab = 'new'"
+            :class="tab === 'new' ? 'border-red-500 bg-red-950/40' : 'border-gray-700 bg-gray-900 hover:border-gray-600'"
+            class="border rounded-xl p-4 text-left transition-colors">
+      <p class="text-3xl font-bold text-red-400">{{ diff.new | length }}</p>
+      <p class="text-xs font-medium text-red-400/70 mt-0.5 uppercase tracking-wide">New Findings</p>
+      <p class="text-xs text-gray-600 mt-1">Appeared in #{{ scan_a.id }}</p>
+    </button>
+    <button @click="tab = 'resolved'"
+            :class="tab === 'resolved' ? 'border-emerald-500 bg-emerald-950/40' : 'border-gray-700 bg-gray-900 hover:border-gray-600'"
+            class="border rounded-xl p-4 text-left transition-colors">
+      <p class="text-3xl font-bold text-emerald-400">{{ diff.resolved | length }}</p>
+      <p class="text-xs font-medium text-emerald-400/70 mt-0.5 uppercase tracking-wide">Resolved</p>
+      <p class="text-xs text-gray-600 mt-1">Gone since #{{ scan_b.id }}</p>
+    </button>
+    <button @click="tab = 'unchanged'"
+            :class="tab === 'unchanged' ? 'border-gray-500 bg-gray-800/60' : 'border-gray-700 bg-gray-900 hover:border-gray-600'"
+            class="border rounded-xl p-4 text-left transition-colors">
+      <p class="text-3xl font-bold text-gray-400">{{ diff.unchanged | length }}</p>
+      <p class="text-xs font-medium text-gray-500 mt-0.5 uppercase tracking-wide">Unchanged</p>
+      <p class="text-xs text-gray-600 mt-1">Present in both scans</p>
+    </button>
+  </div>
+
+  <!-- ====================================================================
+       Tab pills
+  ===================================================================== -->
+  <div class="flex space-x-1 bg-gray-900 border border-gray-800 rounded-xl p-1 w-fit">
+    <button @click="tab = 'new'"
+            :class="tab === 'new' ? 'bg-red-950 text-red-300 border border-red-800' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
+      New
+      {% if diff.new %}
+        <span class="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-800/60 text-red-300">{{ diff.new | length }}</span>
+      {% endif %}
+    </button>
+    <button @click="tab = 'resolved'"
+            :class="tab === 'resolved' ? 'bg-emerald-950 text-emerald-300 border border-emerald-800' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
+      Resolved
+      {% if diff.resolved %}
+        <span class="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-emerald-800/60 text-emerald-300">{{ diff.resolved | length }}</span>
+      {% endif %}
+    </button>
+    <button @click="tab = 'unchanged'"
+            :class="tab === 'unchanged' ? 'bg-gray-800 text-gray-300 border border-gray-600' : 'text-gray-500 hover:text-gray-300'"
+            class="px-4 py-1.5 rounded-lg text-sm font-medium transition-colors">
+      Unchanged
+      {% if diff.unchanged %}
+        <span class="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-bold bg-gray-700 text-gray-400">{{ diff.unchanged | length }}</span>
+      {% endif %}
+    </button>
+  </div>
+
+  <!-- ====================================================================
+       NEW findings table
+  ===================================================================== -->
+  <div x-show="tab === 'new'">
+    {% if diff.new %}
+    <div class="bg-gray-900 border border-red-900/40 rounded-xl overflow-x-auto">
+      <div class="px-4 py-2.5 border-b border-red-900/30 flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+        <span class="text-sm font-medium text-red-300">New findings — appeared in Scan #{{ scan_a.id }}</span>
+      </div>
+      <table class="min-w-full">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Finding</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recommendation</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-800">
+          {% for f in diff.new %}
+          <tr class="hover:bg-red-950/20 transition-colors">
+            <td class="px-4 py-3 text-sm">
+              <div class="font-medium text-white">{{ f.target_name }}</div>
+              {% if f.target_name != f.target %}<div class="text-xs font-mono text-gray-500">{{ f.target }}</div>{% endif %}
+            </td>
+            <td class="px-4 py-3">
+              <span class="inline-flex px-2 py-0.5 rounded bg-gray-800 text-gray-400 text-xs font-mono">{{ f.check }}</span>
+            </td>
+            <td class="px-4 py-3">
+              {% set sc = {'critical':'bg-red-950 text-red-400','high':'bg-orange-950 text-orange-400','medium':'bg-yellow-950 text-yellow-400','low':'bg-emerald-950 text-emerald-400','info':'bg-blue-950 text-blue-400'} %}
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium uppercase {{ sc.get(f.severity, 'bg-gray-800 text-gray-400') }}">{{ f.severity }}</span>
+            </td>
+            <td class="px-4 py-3 text-sm text-white">{{ f.title }}</td>
+            <td class="px-4 py-3 text-sm text-gray-400 max-w-xs truncate">{{ f.recommendation or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="bg-gray-900 border border-gray-800 rounded-xl px-6 py-14 text-center">
+      <p class="text-emerald-400 font-medium">No new findings</p>
+      <p class="text-sm text-gray-600 mt-1">Everything in Scan #{{ scan_a.id }} was already seen in Scan #{{ scan_b.id }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ====================================================================
+       RESOLVED findings table
+  ===================================================================== -->
+  <div x-show="tab === 'resolved'">
+    {% if diff.resolved %}
+    <div class="bg-gray-900 border border-emerald-900/40 rounded-xl overflow-x-auto">
+      <div class="px-4 py-2.5 border-b border-emerald-900/30 flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        <span class="text-sm font-medium text-emerald-300">Resolved findings — present in #{{ scan_b.id }}, gone in #{{ scan_a.id }}</span>
+      </div>
+      <table class="min-w-full">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Finding</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recommendation</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-800">
+          {% for f in diff.resolved %}
+          <tr class="hover:bg-emerald-950/20 transition-colors opacity-80">
+            <td class="px-4 py-3 text-sm">
+              <div class="font-medium text-gray-300 line-through decoration-emerald-600">{{ f.target_name }}</div>
+              {% if f.target_name != f.target %}<div class="text-xs font-mono text-gray-600">{{ f.target }}</div>{% endif %}
+            </td>
+            <td class="px-4 py-3">
+              <span class="inline-flex px-2 py-0.5 rounded bg-gray-800 text-gray-500 text-xs font-mono">{{ f.check }}</span>
+            </td>
+            <td class="px-4 py-3">
+              {% set sc = {'critical':'bg-red-950 text-red-400','high':'bg-orange-950 text-orange-400','medium':'bg-yellow-950 text-yellow-400','low':'bg-emerald-950 text-emerald-400','info':'bg-blue-950 text-blue-400'} %}
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium uppercase opacity-60 {{ sc.get(f.severity, 'bg-gray-800 text-gray-400') }}">{{ f.severity }}</span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-500 line-through decoration-emerald-600/40">{{ f.title }}</td>
+            <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{{ f.recommendation or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="bg-gray-900 border border-gray-800 rounded-xl px-6 py-14 text-center">
+      <p class="text-gray-400 font-medium">No resolved findings</p>
+      <p class="text-sm text-gray-600 mt-1">All findings from Scan #{{ scan_b.id }} are still present in Scan #{{ scan_a.id }}</p>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- ====================================================================
+       UNCHANGED findings table
+  ===================================================================== -->
+  <div x-show="tab === 'unchanged'">
+    {% if diff.unchanged %}
+    <div class="bg-gray-900 border border-gray-700 rounded-xl overflow-x-auto">
+      <div class="px-4 py-2.5 border-b border-gray-800 flex items-center space-x-2">
+        <span class="w-2 h-2 rounded-full bg-gray-500"></span>
+        <span class="text-sm font-medium text-gray-400">Unchanged — present in both scans</span>
+      </div>
+      <table class="min-w-full">
+        <thead>
+          <tr class="border-b border-gray-800">
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Check</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Severity</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Finding</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recommendation</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-800">
+          {% for f in diff.unchanged %}
+          <tr class="hover:bg-gray-800 transition-colors opacity-70">
+            <td class="px-4 py-3 text-sm">
+              <div class="font-medium text-gray-300">{{ f.target_name }}</div>
+              {% if f.target_name != f.target %}<div class="text-xs font-mono text-gray-600">{{ f.target }}</div>{% endif %}
+            </td>
+            <td class="px-4 py-3">
+              <span class="inline-flex px-2 py-0.5 rounded bg-gray-800 text-gray-500 text-xs font-mono">{{ f.check }}</span>
+            </td>
+            <td class="px-4 py-3">
+              {% set sc = {'critical':'bg-red-950 text-red-400','high':'bg-orange-950 text-orange-400','medium':'bg-yellow-950 text-yellow-400','low':'bg-emerald-950 text-emerald-400','info':'bg-blue-950 text-blue-400'} %}
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium uppercase opacity-60 {{ sc.get(f.severity, 'bg-gray-800 text-gray-400') }}">{{ f.severity }}</span>
+            </td>
+            <td class="px-4 py-3 text-sm text-gray-400">{{ f.title }}</td>
+            <td class="px-4 py-3 text-sm text-gray-600 max-w-xs truncate">{{ f.recommendation or '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="bg-gray-900 border border-gray-800 rounded-xl px-6 py-14 text-center">
+      <p class="text-gray-400 font-medium">No unchanged findings</p>
+    </div>
+    {% endif %}
+  </div>
+
+  {% else %}
+
+  <!-- ====================================================================
+       No comparison selected yet
+  ===================================================================== -->
+  <div class="bg-gray-900 border border-gray-800 rounded-xl px-6 py-20 text-center space-y-3">
+    <svg class="w-12 h-12 text-gray-700 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+        d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+    </svg>
+    <p class="text-gray-400 font-medium">Select a scan to compare against</p>
+    <p class="text-sm text-gray-600">Use the dropdown above to pick a baseline scan.<br>
+       New findings will appear in red, resolved findings in green.</p>
+    {% if not all_scans %}
+    <p class="text-xs text-gray-700 mt-2">No other completed scans found.</p>
+    {% endif %}
+  </div>
+
+  {% endif %}
+
+</div>
+{% endblock %}
