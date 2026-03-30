@@ -2,15 +2,15 @@
 {% block title %}Scan History – Viridis{% endblock %}
 
 {% block content %}
-<div class="p-8 space-y-6">
+<div class="p-6 space-y-5">
 
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Scan History</h1>
-      <p class="text-gray-500 text-sm mt-1">{{ total }} scan(s) total</p>
+      <h1 class="text-xl font-bold text-white">Scan History</h1>
+      <p class="text-sm text-gray-500 mt-0.5">{{ total }} scan(s) total</p>
     </div>
     <button onclick="window.startScan({})"
-            class="flex items-center space-x-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
@@ -20,68 +20,68 @@
     </button>
   </div>
 
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Triggered By</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Filter</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Finished</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Targets</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Critical</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">High</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medium</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+    <table class="min-w-full">
+      <thead>
+        <tr class="border-b border-gray-800">
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Triggered By</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Filter</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Started</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Finished</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Targets</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Critical</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">High</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Medium</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-200">
+      <tbody class="divide-y divide-gray-800">
         {% for scan in scans %}
-        <tr class="hover:bg-gray-50 cursor-pointer" onclick="window.location='/scans/{{ scan.id }}'">
-          <td class="px-6 py-4 text-sm text-gray-900 font-mono">#{{ scan.id }}</td>
-          <td class="px-6 py-4 text-sm text-gray-700 capitalize">{{ scan.triggered_by or 'manual' }}</td>
-          <td class="px-6 py-4 text-sm text-gray-500">
+        <tr class="hover:bg-gray-800 cursor-pointer transition-colors" onclick="window.location='/scans/{{ scan.id }}'">
+          <td class="px-4 py-3 text-sm text-white font-mono">#{{ scan.id }}</td>
+          <td class="px-4 py-3 text-sm text-gray-300 capitalize">{{ scan.triggered_by or 'manual' }}</td>
+          <td class="px-4 py-3 text-sm">
             {% if scan.filter_group %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700">group:{{ scan.filter_group }}</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-300 border border-gray-700">group: {{ scan.filter_group }}</span>
             {% elif scan.filter_tag %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-green-100 text-green-700">tag:{{ scan.filter_tag }}</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-gray-800 text-gray-300 border border-gray-700">tag: {{ scan.filter_tag }}</span>
             {% else %}
-              <span class="text-gray-400">all</span>
+              <span class="text-gray-600 text-xs">all</span>
             {% endif %}
           </td>
-          <td class="px-6 py-4 text-sm text-gray-700">{{ scan.started_at[:16].replace('T', ' ') }}</td>
-          <td class="px-6 py-4 text-sm text-gray-500">
+          <td class="px-4 py-3 text-sm text-gray-300">{{ scan.started_at[:16].replace('T', ' ') }}</td>
+          <td class="px-4 py-3 text-sm text-gray-500">
             {% if scan.finished_at %}{{ scan.finished_at[:16].replace('T', ' ') }}{% else %}—{% endif %}
           </td>
-          <td class="px-6 py-4 text-sm text-gray-700">{{ scan.total_targets }}</td>
-          <td class="px-6 py-4">
+          <td class="px-4 py-3 text-sm text-gray-300">{{ scan.total_targets }}</td>
+          <td class="px-4 py-3">
             {% if scan.critical_count > 0 %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-700">{{ scan.critical_count }}</span>
-            {% else %}<span class="text-gray-400 text-sm">0</span>{% endif %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-red-950 text-red-400">{{ scan.critical_count }}</span>
+            {% else %}<span class="text-gray-600 text-sm">0</span>{% endif %}
           </td>
-          <td class="px-6 py-4">
+          <td class="px-4 py-3">
             {% if scan.high_count > 0 %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-700">{{ scan.high_count }}</span>
-            {% else %}<span class="text-gray-400 text-sm">0</span>{% endif %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-orange-950 text-orange-400">{{ scan.high_count }}</span>
+            {% else %}<span class="text-gray-600 text-sm">0</span>{% endif %}
           </td>
-          <td class="px-6 py-4">
+          <td class="px-4 py-3">
             {% if scan.medium_count > 0 %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-100 text-yellow-700">{{ scan.medium_count }}</span>
-            {% else %}<span class="text-gray-400 text-sm">0</span>{% endif %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-950 text-yellow-400">{{ scan.medium_count }}</span>
+            {% else %}<span class="text-gray-600 text-sm">0</span>{% endif %}
           </td>
-          <td class="px-6 py-4">
+          <td class="px-4 py-3">
             {% if scan.status == 'completed' %}
-              <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Completed</span>
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-950 text-emerald-400">Completed</span>
             {% elif scan.status == 'running' %}
-              <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 animate-pulse">Running</span>
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-300 animate-pulse">Running</span>
             {% else %}
-              <span class="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>
+              <span class="inline-flex px-2 py-0.5 rounded-full text-xs font-medium bg-red-950 text-red-400">Failed</span>
             {% endif %}
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="10" class="px-6 py-12 text-center text-gray-400 text-sm">No scans found.</td></tr>
+        <tr><td colspan="10" class="px-4 py-14 text-center text-gray-600 text-sm">No scans found.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -89,23 +89,17 @@
 
   {% if total_pages > 1 %}
   <div class="flex items-center justify-between">
-    <p class="text-sm text-gray-600">Page {{ page }} of {{ total_pages }} ({{ total }} total)</p>
+    <p class="text-sm text-gray-500">Page {{ page }} of {{ total_pages }} ({{ total }} total)</p>
     <div class="flex space-x-2">
       {% if page > 1 %}
-      <a href="/scans?page={{ page - 1 }}" class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Previous</a>
+      <a href="/scans?page={{ page - 1 }}" class="px-4 py-2 bg-gray-800 border border-gray-700 text-gray-300 rounded-lg text-sm hover:bg-gray-700 transition-colors">Previous</a>
       {% endif %}
       {% if page < total_pages %}
-      <a href="/scans?page={{ page + 1 }}" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700">Next</a>
+      <a href="/scans?page={{ page + 1 }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm transition-colors">Next</a>
       {% endif %}
     </div>
   </div>
   {% endif %}
 
 </div>
-
-<script>
-  document.addEventListener('start-scan', (e) => {
-    const el = document.querySelector('[x-data="scanProgress()"]');
-  });
-</script>
 {% endblock %}

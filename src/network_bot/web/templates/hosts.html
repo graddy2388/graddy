@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Host Inventory – Viridis{% endblock %}
+{% block title %}Host Discovery – Viridis{% endblock %}
 
 {% block content %}
-<div class="p-8 space-y-6">
+<div class="p-6 space-y-5">
 
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Host Inventory</h1>
-      <p class="text-gray-500 text-sm mt-1">Hosts discovered via subnet and nmap scans</p>
+      <h1 class="text-xl font-bold text-white">Host Discovery</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Hosts discovered via subnet and nmap scans</p>
     </div>
     <button onclick="document.dispatchEvent(new CustomEvent('open-subnet-scan'))"
-            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 text-sm font-medium">
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
           d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
@@ -20,54 +20,54 @@
   </div>
 
   {% if hosts %}
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead class="bg-gray-50">
-        <tr>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hostname</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">OS</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Open Ports</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Seen</th>
-          <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-          <th class="px-6 py-3"></th>
+  <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+    <table class="min-w-full">
+      <thead>
+        <tr class="border-b border-gray-800">
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">IP Address</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Hostname</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Operating System</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Open Ports</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Seen</th>
+          <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+          <th class="px-4 py-3"></th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-200">
+      <tbody class="divide-y divide-gray-800">
         {% for host in hosts %}
-        <tr class="hover:bg-gray-50">
-          <td class="px-6 py-4">
-            <span class="font-mono text-sm text-gray-900">{{ host.ip_address }}</span>
+        <tr class="hover:bg-gray-800 transition-colors">
+          <td class="px-4 py-3">
+            <span class="font-mono text-sm text-white">{{ host.ip_address }}</span>
           </td>
-          <td class="px-6 py-4 text-sm text-gray-700">{{ host.hostname or '—' }}</td>
-          <td class="px-6 py-4 text-sm text-gray-500">{{ (host.os_guess or '—')[:40] }}</td>
-          <td class="px-6 py-4">
+          <td class="px-4 py-3 text-sm text-gray-300">{{ host.hostname or '—' }}</td>
+          <td class="px-4 py-3 text-sm text-gray-400">{{ (host.os_guess or '—')[:40] }}</td>
+          <td class="px-4 py-3">
             {% set ports = host.open_ports if host.open_ports is iterable and host.open_ports is not string else [] %}
             {% if ports %}
-              <span class="text-xs font-mono text-gray-600">
+              <span class="text-xs font-mono text-gray-400">
                 {% for p in ports[:8] %}{{ p }}{% if not loop.last %}, {% endif %}{% endfor %}
-                {% if ports|length > 8 %} +{{ ports|length - 8 }} more{% endif %}
+                {% if ports|length > 8 %} <span class="text-gray-600">+{{ ports|length - 8 }} more</span>{% endif %}
               </span>
             {% else %}
-              <span class="text-gray-400 text-xs">none found</span>
+              <span class="text-gray-600 text-xs">none found</span>
             {% endif %}
           </td>
-          <td class="px-6 py-4 text-sm text-gray-500">
+          <td class="px-4 py-3 text-sm text-gray-500">
             {{ (host.last_seen or '')[:16].replace('T', ' ') }}
           </td>
-          <td class="px-6 py-4">
+          <td class="px-4 py-3">
             {% if host.is_alive %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                <span class="w-1.5 h-1.5 bg-green-400 rounded-full mr-1"></span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-950 text-emerald-400">
+                <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1.5"></span>
                 Alive
               </span>
             {% else %}
-              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Down</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-800 text-gray-500">Down</span>
             {% endif %}
           </td>
-          <td class="px-6 py-4">
+          <td class="px-4 py-3">
             <a href="/hosts/{{ host.ip_address }}"
-               class="text-emerald-600 hover:text-emerald-800 text-xs font-medium">
+               class="text-emerald-500 hover:text-emerald-400 text-xs font-medium transition-colors">
               Details →
             </a>
           </td>
@@ -76,16 +76,17 @@
       </tbody>
     </table>
   </div>
+
   {% else %}
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-16 text-center">
-    <svg class="w-12 h-12 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl px-6 py-20 text-center space-y-3">
+    <svg class="w-12 h-12 text-gray-700 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
         d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>
     </svg>
-    <p class="text-gray-500 text-sm">No hosts discovered yet.</p>
-    <p class="text-gray-400 text-xs mt-1">Run a subnet scan to discover hosts on your network.</p>
+    <p class="text-gray-400 font-medium">No hosts discovered yet.</p>
+    <p class="text-sm text-gray-600">Run a subnet scan to discover hosts on your network.</p>
     <button onclick="document.dispatchEvent(new CustomEvent('open-subnet-scan'))"
-            class="mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700">
+            class="mt-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
       Run Subnet Scan
     </button>
   </div>
@@ -96,35 +97,36 @@
 <!-- Subnet Scan Modal -->
 <div x-data="subnetScanApp()" x-cloak>
   <div x-show="open"
-       class="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50"
+       class="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-70"
        @click.self="open = false"
        x-transition>
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4">
-      <div class="px-6 py-4 border-b flex items-center justify-between">
-        <h3 class="text-lg font-semibold text-gray-900">Subnet Scan</h3>
-        <button @click="open = false" class="text-gray-400 hover:text-gray-600">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
+        <h3 class="text-sm font-semibold text-white">Subnet Scan</h3>
+        <button @click="open = false" class="text-gray-500 hover:text-gray-300 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
         </button>
       </div>
-      <div class="px-6 py-4 space-y-4">
+      <div class="px-5 py-4 space-y-3">
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">CIDR Range</label>
+          <label class="block text-xs text-gray-400 mb-1.5">CIDR Range</label>
           <input x-model="cidr" type="text" placeholder="e.g. 192.168.1.0/24"
-                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 font-mono">
-          <p class="text-xs text-gray-400 mt-1">Enter the subnet to scan. Scope rules apply.</p>
+                 maxlength="50"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500">
+          <p class="text-xs text-gray-600 mt-1">Enter the subnet to scan. Scan Scope rules apply.</p>
         </div>
-        <div x-show="error" class="text-red-600 text-sm" x-text="error"></div>
+        <div x-show="error" class="text-red-400 text-xs bg-red-950 border border-red-900 rounded-lg px-3 py-2" x-text="error"></div>
       </div>
-      <div class="px-6 py-4 border-t flex justify-end space-x-3">
+      <div class="px-5 py-4 border-t border-gray-700 flex justify-end space-x-3">
         <button @click="open = false"
-                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">
+                class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">
           Cancel
         </button>
         <button @click="startScan()"
                 :disabled="!cidr"
-                class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50">
+                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
           Start Scan
         </button>
       </div>
@@ -143,9 +145,15 @@
       },
       startScan() {
         if (!this.cidr) return;
+        // Basic CIDR validation
+        var cidrPattern = /^[\d\.a-fA-F:]+\/\d{1,3}$/;
+        if (!cidrPattern.test(this.cidr.trim())) {
+          this.error = 'Please enter a valid CIDR (e.g. 192.168.1.0/24)';
+          return;
+        }
         this.error = '';
         this.open = false;
-        window.startScan({ subnet: this.cidr });
+        window.startScan({ subnet: this.cidr.trim() });
       },
     };
   }

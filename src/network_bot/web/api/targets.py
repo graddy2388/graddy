@@ -16,6 +16,12 @@ from ..db.crud import (
 from ..resolver import resolve_host
 
 
+_VALID_CHECKS = {
+    "port_scan", "ssl", "http", "dns", "vuln", "smtp",
+    "exposed_paths", "cipher", "nmap", "subnet_scan",
+}
+
+
 class TargetIn(BaseModel):
     name: str
     host: str
@@ -26,6 +32,30 @@ class TargetIn(BaseModel):
     enabled: int = 1
     notes: str = ""
     tag_ids: List[int] = []
+
+    model_config = {"extra": "ignore"}
+
+    def validate_fields(self):
+        if not self.name or not self.name.strip():
+            raise HTTPException(status_code=422, detail="Name is required")
+        if len(self.name) > 120:
+            raise HTTPException(status_code=422, detail="Name must be 120 characters or fewer")
+        if not self.host or not self.host.strip():
+            raise HTTPException(status_code=422, detail="Host is required")
+        if len(self.host) > 253:
+            raise HTTPException(status_code=422, detail="Host must be 253 characters or fewer")
+        if self.notes and len(self.notes) > 2000:
+            raise HTTPException(status_code=422, detail="Notes must be 2000 characters or fewer")
+        if self.checks:
+            invalid = [c for c in self.checks if c not in _VALID_CHECKS]
+            if invalid:
+                raise HTTPException(status_code=422, detail=f"Unknown checks: {', '.join(invalid)}")
+        if self.ports:
+            bad = [p for p in self.ports if not (0 < p <= 65535)]
+            if bad:
+                raise HTTPException(status_code=422, detail=f"Invalid port numbers: {bad}")
+        if len(self.tag_ids) > 50:
+            raise HTTPException(status_code=422, detail="Too many tags (max 50)")
 
 
 class TargetUpdate(BaseModel):
@@ -65,6 +95,7 @@ def make_router(get_db_dep) -> APIRouter:
 
     @r.post("", status_code=201)
     def create(body: TargetIn, db=Depends(get_db_dep)):
+        body.validate_fields()
         try:
             resolved = resolve_host(body.host)
             target = create_target(

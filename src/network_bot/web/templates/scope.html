@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Scope – Viridis{% endblock %}
+{% block title %}Scan Scope – Viridis{% endblock %}
 
 {% block content %}
 <script>
@@ -54,7 +54,7 @@
 
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Scope</h1>
+      <h1 class="text-2xl font-bold text-gray-900">Scan Scope</h1>
       <p class="text-gray-500 text-sm mt-1">Define in-scope IP ranges to prevent scanning unauthorized hosts</p>
     </div>
     <button @click="openAdd()"
@@ -68,7 +68,7 @@
 
   <!-- Scope checker -->
   <div class="bg-white rounded-xl border border-gray-200 p-5">
-    <h2 class="text-sm font-semibold text-gray-700 mb-3">Scope Checker</h2>
+    <h2 class="text-sm font-semibold text-gray-700 mb-3">Scope Check</h2>
     <div class="flex space-x-3">
       <input x-model="checkIp" type="text" placeholder="Enter IP address to check..."
              @keydown.enter="checkScope()"

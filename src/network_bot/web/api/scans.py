@@ -83,8 +83,6 @@ def run_checks_for_web(
     """
     from ..db.schema import get_db
 
-    CHECK_REGISTRY = _load_check_registry()
-
     def _put(event: dict) -> None:
         loop.call_soon_threadsafe(progress_queue.put_nowait, event)
 
@@ -97,26 +95,29 @@ def run_checks_for_web(
     }
     _DEFAULT_CHECK_TIMEOUT = 90
 
-    sev_counts: Dict[str, int] = {
-        "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0
-    }
-
-    # Per-target severity counts for individual risk scores
-    per_target_sev: Dict[str, Dict[str, int]] = {}
-
-    total_checks = sum(
-        len(
-            t.get("checks")
-            if isinstance(t.get("checks"), list)
-            else json.loads(t.get("checks", "[]"))
-            if isinstance(t.get("checks"), str)
-            else _DEFAULT_CHECKS
-        )
-        for t in targets
-    )
-    done = 0
-
     try:
+        # Load check classes inside try so import failures emit a proper error event
+        CHECK_REGISTRY = _load_check_registry()
+
+        sev_counts: Dict[str, int] = {
+            "critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0
+        }
+        per_target_sev: Dict[str, Dict[str, int]] = {}
+
+        def _count_checks(t):
+            c = t.get("checks")
+            if isinstance(c, list):
+                return len(c)
+            if isinstance(c, str):
+                try:
+                    return len(json.loads(c))
+                except Exception:
+                    pass
+            return len(_DEFAULT_CHECKS)
+
+        total_checks = sum(_count_checks(t) for t in targets)
+        done = 0
+
         for target in targets:
             host = target["host"]
             name = target.get("name", host)
@@ -443,7 +444,15 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         active_scans[scan_id] = queue
 
         def _run():
-            run_checks_for_web(targets, config, db_path, scan_id, queue, loop)
+            try:
+                run_checks_for_web(targets, config, db_path, scan_id, queue, loop)
+            except Exception as _exc:
+                # Last-resort safety net: run_checks_for_web already handles its own
+                # exceptions, but if something slips through, emit an error event.
+                loop.call_soon_threadsafe(
+                    queue.put_nowait,
+                    {"type": "error", "message": f"Scan thread crashed: {_exc}"},
+                )
             import time
             time.sleep(2)
             active_scans.pop(scan_id, None)

@@ -49,7 +49,7 @@
         {% for s in all_scans %}
         <option value="{{ s.id }}" {% if compare_to == s.id %}selected{% endif %}>
           #{{ s.id }} – {{ s.started_at[:16].replace('T',' ') }}
-          (C:{{ s.critical_count }} H:{{ s.high_count }} M:{{ s.medium_count }})
+          — Critical: {{ s.critical_count }}, High: {{ s.high_count }}, Medium: {{ s.medium_count }}
         </option>
         {% endfor %}
       </select>

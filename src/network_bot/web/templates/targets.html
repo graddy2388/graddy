@@ -638,11 +638,13 @@
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">Name *</label>
             <input x-model="form.name" type="text" placeholder="My Server"
+                   maxlength="120"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">Host / IP / CIDR *</label>
             <input x-model="form.host" type="text" placeholder="192.168.1.1 or host.example.com"
+                   maxlength="253"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
         </div>
@@ -694,7 +696,7 @@
         <!-- Notes -->
         <div>
           <label class="block text-xs text-gray-400 mb-1.5">Notes</label>
-          <textarea x-model="form.notes" rows="2" placeholder="Optional notes…"
+          <textarea x-model="form.notes" rows="2" placeholder="Optional notes…" maxlength="2000"
                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"></textarea>
         </div>
 
