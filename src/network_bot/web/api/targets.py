@@ -3,23 +3,28 @@ network_bot.web.api.targets – REST endpoints for target management.
 """
 from __future__ import annotations
 
-import json
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 
 from ..db.crud import (
     get_targets, get_target, create_target, update_target, delete_target,
     set_target_tags, import_from_yaml, add_host_history, get_host_history,
 )
 from ..resolver import resolve_host
-
-
-_VALID_CHECKS = {
-    "port_scan", "ssl", "http", "dns", "vuln", "smtp",
-    "exposed_paths", "cipher", "nmap", "subnet_scan",
-}
+from ..validation import (
+    MAX_NAME_LEN,
+    MAX_NOTES_LEN,
+    MAX_TAG_IDS,
+    MAX_IMPORT_ROWS,
+    MAX_SEARCH_QUERY_LEN,
+    MAX_GROUP_TAG_NAME,
+    truncate_search_query,
+    validate_checks,
+    validate_host,
+    validate_ports,
+)
 
 
 class TargetIn(BaseModel):
@@ -35,27 +40,33 @@ class TargetIn(BaseModel):
 
     model_config = {"extra": "ignore"}
 
-    def validate_fields(self):
+    @field_validator("enabled")
+    @classmethod
+    def _enabled(cls, v: int) -> int:
+        if v not in (0, 1):
+            raise ValueError("enabled must be 0 or 1")
+        return v
+
+    @model_validator(mode="after")
+    def _validate(self) -> TargetIn:
         if not self.name or not self.name.strip():
-            raise HTTPException(status_code=422, detail="Name is required")
-        if len(self.name) > 120:
-            raise HTTPException(status_code=422, detail="Name must be 120 characters or fewer")
+            raise ValueError("name is required")
+        if len(self.name) > MAX_NAME_LEN:
+            raise ValueError(f"name must be {MAX_NAME_LEN} characters or fewer")
         if not self.host or not self.host.strip():
-            raise HTTPException(status_code=422, detail="Host is required")
-        if len(self.host) > 253:
-            raise HTTPException(status_code=422, detail="Host must be 253 characters or fewer")
-        if self.notes and len(self.notes) > 2000:
-            raise HTTPException(status_code=422, detail="Notes must be 2000 characters or fewer")
-        if self.checks:
-            invalid = [c for c in self.checks if c not in _VALID_CHECKS]
-            if invalid:
-                raise HTTPException(status_code=422, detail=f"Unknown checks: {', '.join(invalid)}")
-        if self.ports:
-            bad = [p for p in self.ports if not (0 < p <= 65535)]
-            if bad:
-                raise HTTPException(status_code=422, detail=f"Invalid port numbers: {bad}")
-        if len(self.tag_ids) > 50:
-            raise HTTPException(status_code=422, detail="Too many tags (max 50)")
+            raise ValueError("host is required")
+        validate_host(self.host)
+        if self.notes and len(self.notes) > MAX_NOTES_LEN:
+            raise ValueError(f"notes must be {MAX_NOTES_LEN} characters or fewer")
+        if self.checks is not None:
+            validate_checks(self.checks, allow_empty=False)
+        if self.ports is not None:
+            validate_ports(self.ports)
+        if self.smtp_ports is not None:
+            validate_ports(self.smtp_ports)
+        if len(self.tag_ids) > MAX_TAG_IDS:
+            raise ValueError(f"too many tags (max {MAX_TAG_IDS})")
+        return self
 
 
 class TargetUpdate(BaseModel):
@@ -69,9 +80,85 @@ class TargetUpdate(BaseModel):
     notes: Optional[str] = None
     tag_ids: Optional[List[int]] = None
 
+    model_config = {"extra": "ignore"}
+
+    @field_validator("enabled")
+    @classmethod
+    def _enabled(cls, v: Optional[int]) -> Optional[int]:
+        if v is None:
+            return v
+        if v not in (0, 1):
+            raise ValueError("enabled must be 0 or 1")
+        return v
+
+    @model_validator(mode="after")
+    def _validate(self) -> TargetUpdate:
+        if self.name is not None:
+            if not self.name.strip():
+                raise ValueError("name cannot be empty")
+            if len(self.name) > MAX_NAME_LEN:
+                raise ValueError(f"name must be {MAX_NAME_LEN} characters or fewer")
+        if self.host is not None:
+            validate_host(self.host)
+        if self.notes is not None and len(self.notes) > MAX_NOTES_LEN:
+            raise ValueError(f"notes must be {MAX_NOTES_LEN} characters or fewer")
+        if self.checks is not None:
+            validate_checks(self.checks, allow_empty=False)
+        if self.ports is not None:
+            validate_ports(self.ports)
+        if self.smtp_ports is not None:
+            validate_ports(self.smtp_ports)
+        if self.tag_ids is not None and len(self.tag_ids) > MAX_TAG_IDS:
+            raise ValueError(f"too many tags (max {MAX_TAG_IDS})")
+        return self
+
+
+class TargetImportRow(BaseModel):
+    host: str
+    name: Optional[str] = None
+    group: Optional[str] = None
+    checks: Optional[List[str]] = None
+    ports: Optional[List[int]] = None
+    smtp_ports: Optional[List[int]] = None
+    enabled: int = 1
+    notes: str = ""
+    tags: Optional[List[str]] = None
+
+    model_config = {"extra": "ignore"}
+
+    @field_validator("enabled")
+    @classmethod
+    def _enabled(cls, v: int) -> int:
+        if v not in (0, 1):
+            raise ValueError("enabled must be 0 or 1")
+        return v
+
+    @model_validator(mode="after")
+    def _validate(self) -> TargetImportRow:
+        validate_host(self.host)
+        if self.name is not None and len(self.name) > MAX_NAME_LEN:
+            raise ValueError(f"name must be {MAX_NAME_LEN} characters or fewer")
+        if self.group is not None and len(self.group) > MAX_GROUP_TAG_NAME:
+            raise ValueError("group name too long")
+        if self.notes and len(self.notes) > MAX_NOTES_LEN:
+            raise ValueError("notes too long")
+        if self.checks is not None:
+            validate_checks(self.checks, allow_empty=False)
+        if self.ports is not None:
+            validate_ports(self.ports)
+        if self.smtp_ports is not None:
+            validate_ports(self.smtp_ports)
+        if self.tags is not None:
+            if len(self.tags) > MAX_TAG_IDS:
+                raise ValueError("too many tag names in import row")
+            for tn in self.tags:
+                if len(tn) > MAX_GROUP_TAG_NAME:
+                    raise ValueError("tag name too long")
+        return self
+
 
 class ImportBody(BaseModel):
-    targets: List[dict]
+    targets: List[TargetImportRow]
 
 
 def make_router(get_db_dep) -> APIRouter:
@@ -81,12 +168,12 @@ def make_router(get_db_dep) -> APIRouter:
     def list_targets(
         group_id: Optional[int] = Query(None),
         tag_id: Optional[int] = Query(None),
-        q: Optional[str] = Query(None),
+        q: Optional[str] = Query(None, max_length=MAX_SEARCH_QUERY_LEN),
         db=Depends(get_db_dep),
     ):
         targets = get_targets(db, group_id=group_id, tag_id=tag_id)
         if q:
-            q_lower = q.lower()
+            q_lower = truncate_search_query(q).lower()
             targets = [
                 t for t in targets
                 if q_lower in t["name"].lower() or q_lower in t["host"].lower()
@@ -95,13 +182,12 @@ def make_router(get_db_dep) -> APIRouter:
 
     @r.post("", status_code=201)
     def create(body: TargetIn, db=Depends(get_db_dep)):
-        body.validate_fields()
         try:
             resolved = resolve_host(body.host)
             target = create_target(
                 db,
-                name=body.name,
-                host=body.host,
+                name=body.name.strip(),
+                host=body.host.strip(),
                 group_id=body.group_id,
                 checks=body.checks,
                 ports=body.ports,
@@ -119,8 +205,10 @@ def make_router(get_db_dep) -> APIRouter:
                 db, target["id"], resolved["hostname"], resolved["ip_address"]
             )
             return target
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @r.put("/{id}")
     def update(id: int, body: TargetUpdate, db=Depends(get_db_dep)):
@@ -131,11 +219,15 @@ def make_router(get_db_dep) -> APIRouter:
         update_data = body.model_dump(exclude_none=True, exclude={"tag_ids"})
 
         if "host" in update_data:
+            update_data["host"] = update_data["host"].strip()
             resolved = resolve_host(update_data["host"])
             update_data["hostname"] = resolved["hostname"]
             update_data["last_resolved_ip"] = resolved["ip_address"]
             update_data["last_resolved_at"] = resolved["resolved_at"]
             add_host_history(db, id, resolved["hostname"], resolved["ip_address"])
+
+        if "name" in update_data:
+            update_data["name"] = update_data["name"].strip()
 
         if update_data:
             result = update_target(db, id, **update_data)
@@ -155,7 +247,13 @@ def make_router(get_db_dep) -> APIRouter:
 
     @r.post("/import", status_code=201)
     def import_targets(body: ImportBody, db=Depends(get_db_dep)):
-        count = import_from_yaml(db, body.targets)
+        if len(body.targets) > MAX_IMPORT_ROWS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"too many rows (max {MAX_IMPORT_ROWS})",
+            )
+        rows = [t.model_dump() for t in body.targets]
+        count = import_from_yaml(db, rows)
         return {"imported": count}
 
     @r.get("/{id}/history")

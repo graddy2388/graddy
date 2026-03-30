@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator, model_validator
 
 from ..db.crud import (
     create_scan, finish_scan, fail_scan,
@@ -20,6 +20,13 @@ from ..db.crud import (
     get_targets, add_scan_result,
     get_scan_profile, upsert_host_inventory, upsert_host_service,
     is_in_scope, update_target_risk, auto_tag_target,
+)
+from ..validation import (
+    MAX_QUERY_LIMIT,
+    MAX_TARGET_IDS_PER_SCAN,
+    clamp_limit,
+    validate_checks,
+    validate_host,
 )
 
 
@@ -35,6 +42,31 @@ class ScanIn(BaseModel):
     adhoc_checks: Optional[List[str]] = None  # checks to run for adhoc scan
 
     model_config = {"extra": "ignore"}
+
+    @field_validator("subnet", "adhoc_host", "scan_name", mode="before")
+    @classmethod
+    def _strip_opt(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+    @model_validator(mode="after")
+    def _validate(self) -> ScanIn:
+        if self.scan_name is not None and len(self.scan_name) > 200:
+            raise ValueError("scan_name must be 200 characters or fewer")
+        if self.target_ids is not None and len(self.target_ids) > MAX_TARGET_IDS_PER_SCAN:
+            raise ValueError(f"at most {MAX_TARGET_IDS_PER_SCAN} target_ids allowed")
+        if self.subnet and self.adhoc_host:
+            raise ValueError("specify only one of subnet or adhoc_host")
+        if self.subnet:
+            validate_host(self.subnet)
+        if self.adhoc_host:
+            validate_host(self.adhoc_host)
+            if self.adhoc_checks:
+                validate_checks(self.adhoc_checks, allow_empty=False)
+        return self
 
 
 # Default checks registry – new checks registered here
@@ -363,6 +395,7 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
 
     @r.get("")
     def list_scans(limit: int = 50, db=Depends(get_db_dep)):
+        limit = clamp_limit(limit, default=50, cap=MAX_QUERY_LIMIT)
         return get_scans(db, limit=limit)
 
     @r.get("/{id}")
@@ -380,13 +413,8 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         if body.profile_id:
             profile = get_scan_profile(db, body.profile_id)
 
-        # Subnet scan: create a synthetic target from the CIDR
+        # Subnet scan: create a synthetic target from the CIDR (validated in ScanIn)
         if body.subnet:
-            import ipaddress
-            try:
-                ipaddress.ip_network(body.subnet, strict=False)
-            except ValueError:
-                raise HTTPException(status_code=400, detail=f"Invalid subnet CIDR: {body.subnet}")
             targets = [{
                 "id": 0,
                 "name": f"Subnet {body.subnet}",

@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, Request, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
@@ -21,6 +21,7 @@ from .db.crud import (
 import json as _json
 from .db.schema import get_db
 from . import active_scans  # shared dict in web/__init__.py
+from .validation import MAX_PAGE, validate_host_path_segment
 
 
 def _make_db_dep(db_path: str):
@@ -209,7 +210,10 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         })
 
     @app.get("/scans", response_class=HTMLResponse)
-    async def scan_history(request: Request, page: int = 1):
+    async def scan_history(
+        request: Request,
+        page: int = Query(1, ge=1, le=MAX_PAGE),
+    ):
         page_size = 20
         offset = (page - 1) * page_size
         with get_db(db_path) as db:
@@ -282,6 +286,10 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
 
     @app.get("/hosts/{ip:path}", response_class=HTMLResponse)
     async def host_detail(request: Request, ip: str):
+        try:
+            ip = validate_host_path_segment(ip)
+        except ValueError:
+            return HTMLResponse("Invalid host", status_code=400)
         with get_db(db_path) as db:
             services = get_host_services(db, ip)
             identities = get_host_identities(db, ip)
