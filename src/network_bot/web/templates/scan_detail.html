@@ -2,9 +2,19 @@
 {% block title %}Scan #{{ scan.id }} – Viridis{% endblock %}
 
 {% block content %}
-<div class="p-6 space-y-5"
-  x-data="{
-    results: {{ results | tojson }},
+{# JSON must not live inside x-data="..." — embedded quotes break the HTML attribute and leak JS onto the page. #}
+<script type="application/json" id="scan-detail-results">{{ results | tojson }}</script>
+<script>
+function scanDetailPage() {
+  const el = document.getElementById('scan-detail-results');
+  let results = [];
+  try {
+    results = el ? JSON.parse(el.textContent) : [];
+  } catch (e) {
+    console.error('scan_detail: invalid results JSON', e);
+  }
+  return {
+    results,
     filterSeverity: '',
     filterTarget: '',
     filterCheck: '',
@@ -12,7 +22,8 @@
 
     get filtered() {
       return this.results.filter(r => {
-        const matchSev = !this.filterSeverity || (r.findings && r.findings.some(f => f.severity === this.filterSeverity));
+        const findings = r.findings || [];
+        const matchSev = !this.filterSeverity || findings.some(f => f.severity === this.filterSeverity);
         const matchTarget = !this.filterTarget || r.target_host === this.filterTarget;
         const matchCheck = !this.filterCheck || r.check_name === this.filterCheck;
         return matchSev && matchTarget && matchCheck;
@@ -21,23 +32,34 @@
 
     get allFindings() {
       return this.filtered.flatMap(r =>
-        (r.findings || []).map(f => ({ target: r.target_host, target_name: r.target_name, check: r.check_name, ...f }))
+        (r.findings || []).map(f => ({
+          target: r.target_host,
+          target_name: r.target_name,
+          check: r.check_name,
+          ...f,
+        }))
       );
     },
 
-    toggleExpand(i) { this.expandedRow = this.expandedRow === i ? null : i; },
+    toggleExpand(i) {
+      this.expandedRow = this.expandedRow === i ? null : i;
+    },
 
     severityClass(s) {
-      return {
+      const map = {
         critical: 'bg-red-950 text-red-400',
-        high:     'bg-orange-950 text-orange-400',
-        medium:   'bg-yellow-950 text-yellow-400',
-        low:      'bg-emerald-950 text-emerald-400',
-        info:     'bg-gray-800 text-gray-400',
-      }[s] || 'bg-gray-800 text-gray-500';
+        high: 'bg-orange-950 text-orange-400',
+        medium: 'bg-yellow-950 text-yellow-400',
+        low: 'bg-emerald-950 text-emerald-400',
+        info: 'bg-gray-800 text-gray-400',
+      };
+      return map[s] || 'bg-gray-800 text-gray-500';
     },
-  }"
->
+  };
+}
+</script>
+
+<div class="p-6 space-y-5" x-data="scanDetailPage()">
 
   <!-- Header -->
   <div class="flex items-start justify-between">
@@ -187,7 +209,7 @@
             </td>
           </tr>
         </template>
-        <template x-for="(r, i) in filtered.filter(r => (!r.findings || r.findings.length === 0) && r.passed)" :key="'pass-' + i">
+        <template x-for="(r, i) in filtered.filter(row => (!row.findings || row.findings.length === 0) && row.passed)" :key="'pass-' + i">
           <tr class="hover:bg-gray-800 opacity-50 transition-colors">
             <td class="px-4 py-3 text-sm">
               <div class="font-medium text-gray-300" x-text="r.target_name || r.target_host"></div>

@@ -2,24 +2,36 @@
 {% block title %}Reports – Viridis{% endblock %}
 
 {% block content %}
-<div class="p-6 space-y-5"
-     x-data="{
-       filterText: '',
-       filterSev: '',
-       get filtered() {
-         var q = this.filterText.toLowerCase();
-         return scans.filter(s => {
-           var matchText = !q || String(s.id).includes(q);
-           var matchSev  = !this.filterSev ||
-             (this.filterSev === 'critical' && s.critical_count > 0) ||
-             (this.filterSev === 'high'     && s.high_count > 0)     ||
-             (this.filterSev === 'medium'   && s.medium_count > 0)   ||
-             (this.filterSev === 'clean'    && s.critical_count === 0 && s.high_count === 0 && s.medium_count === 0);
-           return matchText && matchSev;
-         });
-       },
-     }"
-     x-init="window.scans = {{ scans | tojson }}">
+<script type="application/json" id="reports-scans-data">{{ scans | tojson }}</script>
+<script>
+function reportsPage() {
+  const el = document.getElementById('reports-scans-data');
+  let scans = [];
+  try {
+    scans = el ? JSON.parse(el.textContent) : [];
+  } catch (e) {
+    console.error('reports: invalid scans JSON', e);
+  }
+  return {
+    scans,
+    filterText: '',
+    filterSev: '',
+    get filtered() {
+      const q = this.filterText.toLowerCase();
+      return this.scans.filter(s => {
+        const matchText = !q || String(s.id).includes(q);
+        const matchSev = !this.filterSev ||
+          (this.filterSev === 'critical' && s.critical_count > 0) ||
+          (this.filterSev === 'high' && s.high_count > 0) ||
+          (this.filterSev === 'medium' && s.medium_count > 0) ||
+          (this.filterSev === 'clean' && s.critical_count === 0 && s.high_count === 0 && s.medium_count === 0);
+        return matchText && matchSev;
+      });
+    },
+  };
+}
+</script>
+<div class="p-6 space-y-5" x-data="reportsPage()">
 
   <div>
     <h1 class="text-xl font-bold text-white">Reports</h1>
