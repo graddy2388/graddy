@@ -32,6 +32,7 @@ MAX_TAG_NAMES_PER_IMPORT = 50
 VALID_CHECKS: FrozenSet[str] = frozenset({
     "port_scan", "ssl", "http", "dns", "vuln", "smtp",
     "exposed_paths", "cipher", "nmap", "subnet_scan",
+    "masscan", "nuclei", "enum4linux", "sqlmap", "gobuster", "hydra",
 })
 
 VALID_INTENSITIES: FrozenSet[str] = frozenset({

@@ -98,6 +98,36 @@ def _load_check_registry():
         registry["subnet_scan"] = SubnetScanCheck
     except ImportError:
         pass
+    try:
+        from ...checks.masscan_check import MasscanCheck
+        registry["masscan"] = MasscanCheck
+    except ImportError:
+        pass
+    try:
+        from ...checks.nuclei_check import NucleiCheck
+        registry["nuclei"] = NucleiCheck
+    except ImportError:
+        pass
+    try:
+        from ...checks.enum4linux_check import Enum4LinuxCheck
+        registry["enum4linux"] = Enum4LinuxCheck
+    except ImportError:
+        pass
+    try:
+        from ...checks.sqlmap_check import SQLMapCheck
+        registry["sqlmap"] = SQLMapCheck
+    except ImportError:
+        pass
+    try:
+        from ...checks.gobuster_check import GobusterCheck
+        registry["gobuster"] = GobusterCheck
+    except ImportError:
+        pass
+    try:
+        from ...checks.hydra_check import HydraCheck
+        registry["hydra"] = HydraCheck
+    except ImportError:
+        pass
     return registry
 
 

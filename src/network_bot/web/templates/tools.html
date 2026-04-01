@@ -113,15 +113,15 @@
         <button @click="open('smtp')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Mail Check</button>
       </div>
 
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors opacity-60">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
         <div>
           <div class="flex items-center justify-between mb-1">
             <h3 class="text-sm font-semibold text-white">Masscan</h3>
             <span class="text-xs text-gray-600 font-mono">masscan</span>
           </div>
-          <p class="text-xs text-gray-500">High-speed internet-scale port scanner</p>
+          <p class="text-xs text-gray-500">High-speed full port sweep (0–65535) with dangerous port flagging</p>
         </div>
-        <div class="w-full px-3 py-2 bg-gray-800 border border-gray-700 text-gray-600 rounded-lg text-xs text-center cursor-not-allowed">Coming Soon</div>
+        <button @click="open('masscan')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Masscan</button>
       </div>
 
     </div>
@@ -152,9 +152,9 @@
             <h3 class="text-sm font-semibold text-white">Directory Enumeration</h3>
             <span class="text-xs text-gray-600 font-mono">exposed_paths</span>
           </div>
-          <p class="text-xs text-gray-500">Discover hidden paths, endpoints, and sensitive files on web servers</p>
+          <p class="text-xs text-gray-500">Gobuster directory brute-force — discovers hidden paths and sensitive files</p>
         </div>
-        <button @click="open('gobuster')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Directory Scan</button>
+        <button @click="open('gobuster')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Gobuster</button>
       </div>
 
       <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
@@ -168,26 +168,26 @@
         <button @click="open('ssl')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run SSL Audit</button>
       </div>
 
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors opacity-60">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
         <div>
           <div class="flex items-center justify-between mb-1">
             <h3 class="text-sm font-semibold text-white">SQLMap</h3>
             <span class="text-xs text-gray-600 font-mono">sqlmap</span>
           </div>
-          <p class="text-xs text-gray-500">Automated SQL injection detection and database fingerprinting</p>
+          <p class="text-xs text-gray-500">Automated SQL injection detection — level 1, risk 1 (safe, non-intrusive)</p>
         </div>
-        <div class="w-full px-3 py-2 bg-gray-800 border border-gray-700 text-gray-600 rounded-lg text-xs text-center cursor-not-allowed">Coming Soon</div>
+        <button @click="open('sqlmap')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run SQLMap</button>
       </div>
 
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors opacity-60">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
         <div>
           <div class="flex items-center justify-between mb-1">
             <h3 class="text-sm font-semibold text-white">Nuclei</h3>
             <span class="text-xs text-gray-600 font-mono">nuclei</span>
           </div>
-          <p class="text-xs text-gray-500">Template-based vulnerability scanner for web applications</p>
+          <p class="text-xs text-gray-500">Template-based vulnerability scanner — critical, high, and medium severity</p>
         </div>
-        <div class="w-full px-3 py-2 bg-gray-800 border border-gray-700 text-gray-600 rounded-lg text-xs text-center cursor-not-allowed">Coming Soon</div>
+        <button @click="open('nuclei')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Nuclei</button>
       </div>
 
     </div>
@@ -212,26 +212,26 @@
         <button @click="open('vuln')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Vulnerability Check</button>
       </div>
 
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors opacity-60">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
         <div>
           <div class="flex items-center justify-between mb-1">
             <h3 class="text-sm font-semibold text-white">Enum4Linux</h3>
             <span class="text-xs text-gray-600 font-mono">enum4linux</span>
           </div>
-          <p class="text-xs text-gray-500">Windows and Samba enumeration — users, shares, groups, policies</p>
+          <p class="text-xs text-gray-500">SMB/Samba enumeration — users, shares, password policy via null session</p>
         </div>
-        <div class="w-full px-3 py-2 bg-gray-800 border border-gray-700 text-gray-600 rounded-lg text-xs text-center cursor-not-allowed">Coming Soon</div>
+        <button @click="open('enum4linux')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Enum4Linux</button>
       </div>
 
-      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors opacity-60">
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
         <div>
           <div class="flex items-center justify-between mb-1">
             <h3 class="text-sm font-semibold text-white">Hydra</h3>
             <span class="text-xs text-gray-600 font-mono">hydra</span>
           </div>
-          <p class="text-xs text-gray-500">Credential testing against SSH, FTP, HTTP, SMB, and other protocols</p>
+          <p class="text-xs text-gray-500">Default-credential testing against SSH and FTP using common vendor defaults</p>
         </div>
-        <div class="w-full px-3 py-2 bg-gray-800 border border-gray-700 text-gray-600 rounded-lg text-xs text-center cursor-not-allowed">Coming Soon</div>
+        <button @click="open('hydra')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Hydra</button>
       </div>
 
     </div>
@@ -253,14 +253,19 @@
             <input x-model="host" type="text" placeholder="e.g. 192.168.1.1 or target.example.com"
                    maxlength="253" autofocus
                    @keydown.enter="
-                     activeTool==='nmap'      ? runHost(['nmap']) :
-                     activeTool==='dns'       ? runHost(['dns']) :
-                     activeTool==='port_scan' ? runHost(['port_scan']) :
-                     activeTool==='nikto'     ? runHost(['http','ssl','exposed_paths','cipher']) :
-                     activeTool==='gobuster'  ? runHost(['exposed_paths']) :
-                     activeTool==='ssl'       ? runHost(['ssl','cipher']) :
-                     activeTool==='smtp'      ? runHost(['smtp']) :
-                     activeTool==='vuln'      ? runHost(['port_scan','vuln']) : null"
+                     activeTool==='nmap'       ? runHost(['nmap']) :
+                     activeTool==='dns'        ? runHost(['dns']) :
+                     activeTool==='port_scan'  ? runHost(['port_scan']) :
+                     activeTool==='nikto'      ? runHost(['http','ssl','exposed_paths','cipher']) :
+                     activeTool==='gobuster'   ? runHost(['gobuster']) :
+                     activeTool==='ssl'        ? runHost(['ssl','cipher']) :
+                     activeTool==='smtp'       ? runHost(['smtp']) :
+                     activeTool==='vuln'       ? runHost(['port_scan','vuln']) :
+                     activeTool==='masscan'    ? runHost(['masscan']) :
+                     activeTool==='sqlmap'     ? runHost(['sqlmap']) :
+                     activeTool==='nuclei'     ? runHost(['nuclei']) :
+                     activeTool==='enum4linux' ? runHost(['enum4linux']) :
+                     activeTool==='hydra'      ? runHost(['hydra']) : null"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500">
           </div>
           <div x-show="error" class="text-red-400 text-xs bg-red-950 border border-red-900 rounded-lg px-3 py-2" x-text="error"></div>
@@ -269,14 +274,19 @@
           <button @click="close()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Cancel</button>
           <button
             @click="
-              activeTool==='nmap'      ? runHost(['nmap']) :
-              activeTool==='dns'       ? runHost(['dns']) :
-              activeTool==='port_scan' ? runHost(['port_scan']) :
-              activeTool==='nikto'     ? runHost(['http','ssl','exposed_paths','cipher']) :
-              activeTool==='gobuster'  ? runHost(['exposed_paths']) :
-              activeTool==='ssl'       ? runHost(['ssl','cipher']) :
-              activeTool==='smtp'      ? runHost(['smtp']) :
-              activeTool==='vuln'      ? runHost(['port_scan','vuln']) : null"
+              activeTool==='nmap'       ? runHost(['nmap']) :
+              activeTool==='dns'        ? runHost(['dns']) :
+              activeTool==='port_scan'  ? runHost(['port_scan']) :
+              activeTool==='nikto'      ? runHost(['http','ssl','exposed_paths','cipher']) :
+              activeTool==='gobuster'   ? runHost(['gobuster']) :
+              activeTool==='ssl'        ? runHost(['ssl','cipher']) :
+              activeTool==='smtp'       ? runHost(['smtp']) :
+              activeTool==='vuln'       ? runHost(['port_scan','vuln']) :
+              activeTool==='masscan'    ? runHost(['masscan']) :
+              activeTool==='sqlmap'     ? runHost(['sqlmap']) :
+              activeTool==='nuclei'     ? runHost(['nuclei']) :
+              activeTool==='enum4linux' ? runHost(['enum4linux']) :
+              activeTool==='hydra'      ? runHost(['hydra']) : null"
             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
             Run
           </button>
