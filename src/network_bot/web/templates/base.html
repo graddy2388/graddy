@@ -68,26 +68,9 @@
       </div>
 
       <!-- ── TOOLS ──────────────────────────────────── -->
-      <button @click="toggle('tools')" class="nav-section">
+      <a href="/tools" class="nav-section {{ 'active' if active_page == 'tools' else '' }}" style="text-decoration:none">
         <span>Tools</span>
-        <svg class="w-3 h-3 caret flex-shrink-0" :class="open.tools?'open':''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
-        </svg>
-      </button>
-      <div x-show="open.tools" x-collapse class="space-y-0.5">
-        <div class="nav-subheader">Recon</div>
-        <a href="/tools/nmap"     class="nav-child {{ 'active' if active_page == 'tools_nmap' else '' }}">nmap</a>
-        <a href="/tools/masscan"  class="nav-child {{ 'active' if active_page == 'tools_masscan' else '' }}">masscan</a>
-        <a href="/tools/enum4linux" class="nav-child {{ 'active' if active_page == 'tools_enum4linux' else '' }}">enum4linux</a>
-        <div class="nav-subheader">Web</div>
-        <a href="/tools/nikto"    class="nav-child {{ 'active' if active_page == 'tools_nikto' else '' }}">nikto</a>
-        <a href="/tools/sqlmap"   class="nav-child {{ 'active' if active_page == 'tools_sqlmap' else '' }}">sqlmap</a>
-        <a href="/tools/gobuster" class="nav-child {{ 'active' if active_page == 'tools_gobuster' else '' }}">gobuster</a>
-        <div class="nav-subheader">Auth</div>
-        <a href="/tools/hydra"    class="nav-child {{ 'active' if active_page == 'tools_hydra' else '' }}">hydra</a>
-        <div class="nav-subheader">Vuln</div>
-        <a href="/tools/nuclei"   class="nav-child {{ 'active' if active_page == 'tools_nuclei' else '' }}">nuclei</a>
-      </div>
+      </a>
 
       <!-- ── SCHEDULES ──────────────────────────────── -->
       <button @click="toggle('schedules')" class="nav-section">

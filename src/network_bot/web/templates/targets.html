@@ -26,9 +26,10 @@
 
       /* New Scan modal */
       showScan:       false,
-      scanTab:        'targets',   /* 'targets' | 'subnet' | 'all' */
+      scanTab:        'targets',   /* 'targets' | 'subnet' | 'tag' | 'all' */
       scanSubnet:     '',
       scanProfile:    '',
+      scanTag:        '',
       scanSelected:   [],          /* ids checked in the scan-targets tab */
 
       /* Bulk selection */
@@ -219,6 +220,7 @@
         this.scanTab      = 'targets';
         this.scanSubnet   = '';
         this.scanProfile  = '';
+        this.scanTag      = '';
         this.scanSelected = [];
         this.showScan     = true;
       },
@@ -234,17 +236,21 @@
 
       submitScan() {
         var payload = {};
-        if (this.scanProfile) payload.profile = this.scanProfile;
+        if (this.scanProfile) payload.profile_id = parseInt(this.scanProfile);
 
         if (this.scanTab === 'targets') {
-          /* If nothing checked, scan all filtered */
           var ids = this.scanSelected.length > 0
             ? this.scanSelected
             : this.filtered.map(t => t.id);
           payload.target_ids = ids;
         } else if (this.scanTab === 'subnet') {
           if (!this.scanSubnet.trim()) { alert('Enter a CIDR subnet.'); return; }
-          payload.subnet = this.scanSubnet.trim();
+          const cidr = this.scanSubnet.trim();
+          if (!/^[\d\.a-fA-F:]+\/\d{1,3}$/.test(cidr)) { alert('Enter a valid CIDR (e.g. 10.0.0.0/24).'); return; }
+          payload.subnet = cidr;
+        } else if (this.scanTab === 'tag') {
+          if (!this.scanTag) { alert('Select a tag.'); return; }
+          payload.tag_id = parseInt(this.scanTag);
         }
         /* 'all' tab: empty payload = all enabled */
 
@@ -534,6 +540,9 @@
         <button @click="scanTab = 'subnet'"
                 :class="scanTab === 'subnet' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-500 hover:text-gray-300'"
                 class="pb-2 px-2 text-sm font-medium transition-colors">Subnet</button>
+        <button @click="scanTab = 'tag'"
+                :class="scanTab === 'tag' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-500 hover:text-gray-300'"
+                class="pb-2 px-2 text-sm font-medium transition-colors">By Tag</button>
         <button @click="scanTab = 'all'"
                 :class="scanTab === 'all' ? 'border-b-2 border-indigo-500 text-white' : 'text-gray-500 hover:text-gray-300'"
                 class="pb-2 px-2 text-sm font-medium transition-colors">All</button>
@@ -580,9 +589,22 @@
         <!-- SUBNET tab -->
         <div x-show="scanTab === 'subnet'" class="space-y-2">
           <label class="block text-xs text-gray-400 mb-1.5">CIDR Subnet</label>
-          <input x-model="scanSubnet" type="text" placeholder="e.g. 10.0.0.0/24"
+          <input x-model="scanSubnet" type="text" placeholder="e.g. 10.0.0.0/24" maxlength="50"
                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-indigo-500"/>
-          <p class="text-xs text-gray-600">Discovers and scans all hosts in the given subnet.</p>
+          <p class="text-xs text-gray-600">Discovers and scans all live hosts in the given CIDR range.</p>
+        </div>
+
+        <!-- TAG tab -->
+        <div x-show="scanTab === 'tag'" class="space-y-2">
+          <label class="block text-xs text-gray-400 mb-1.5">Tag</label>
+          <select x-model="scanTag"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+            <option value="">— select a tag —</option>
+            <template x-for="tg in tags" :key="tg.id">
+              <option :value="tg.id" x-text="tg.name"></option>
+            </template>
+          </select>
+          <p class="text-xs text-gray-600">Scans all targets that have this tag assigned.</p>
         </div>
 
         <!-- ALL tab -->
@@ -607,7 +629,7 @@
               d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
           </svg>
-          <span x-text="scanTab === 'targets' ? (scanSelected.length > 0 ? 'Scan Selected' : 'Scan Filtered') : scanTab === 'subnet' ? 'Scan Subnet' : 'Scan All Enabled'"></span>
+          <span x-text="scanTab === 'targets' ? (scanSelected.length > 0 ? 'Scan Selected' : 'Scan Filtered') : scanTab === 'subnet' ? 'Scan Subnet' : scanTab === 'tag' ? 'Scan by Tag' : 'Scan All Enabled'"></span>
         </button>
       </div>
     </div>

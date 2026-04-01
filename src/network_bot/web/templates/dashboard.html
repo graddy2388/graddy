@@ -2,7 +2,39 @@
 {% block title %}Dashboard – Viridis{% endblock %}
 
 {% block content %}
-<div class="p-6 space-y-6">
+<canvas id="matrix-canvas" style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;opacity:0.07;z-index:0"></canvas>
+<script>
+(function(){
+  var canvas = document.getElementById('matrix-canvas');
+  var ctx = canvas.getContext('2d');
+  var chars = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホ0110';
+  var fontSize = 13;
+  var columns, drops;
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    columns = Math.floor(canvas.width / fontSize);
+    drops = [];
+    for (var i = 0; i < columns; i++) drops[i] = Math.random() * -80;
+  }
+  function draw() {
+    ctx.fillStyle = 'rgba(3,7,18,0.08)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#10b981';
+    ctx.font = fontSize + 'px monospace';
+    for (var i = 0; i < drops.length; i++) {
+      var char = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+      if (drops[i] * fontSize > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  setInterval(draw, 55);
+})();
+</script>
+<div class="p-6 space-y-6" style="position:relative;z-index:1">
 
   <!-- Header -->
   <div class="flex items-center justify-between">
@@ -134,9 +166,9 @@
               <p class="text-xs text-gray-500">{{ o.total }} findings</p>
             </div>
             <div class="flex items-center space-x-2 flex-shrink-0 ml-3">
-              {% if o.critical > 0 %}<span class="text-xs text-red-400 font-bold">{{ o.critical }}C</span>{% endif %}
-              {% if o.high > 0 %}<span class="text-xs text-orange-400 font-bold">{{ o.high }}H</span>{% endif %}
-              {% if o.medium > 0 %}<span class="text-xs text-yellow-400">{{ o.medium }}M</span>{% endif %}
+              {% if o.critical > 0 %}<span class="text-xs text-red-400 font-bold">{{ o.critical }} critical</span>{% endif %}
+              {% if o.high > 0 %}<span class="text-xs text-orange-400 font-bold">{{ o.high }} high</span>{% endif %}
+              {% if o.medium > 0 %}<span class="text-xs text-yellow-400">{{ o.medium }} medium</span>{% endif %}
             </div>
           </div>
           {% endfor %}
