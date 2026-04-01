@@ -2,9 +2,12 @@
 {% block title %}Scan #{{ scan.id }} – Viridis{% endblock %}
 
 {% block content %}
+<script>
+  window._scanResults = {{ results | tojson }};
+</script>
 <div class="p-6 space-y-5"
   x-data="{
-    results: {{ results | tojson }},
+    results: window._scanResults || [],
     filterSeverity: '',
     filterTarget: '',
     filterCheck: '',
