@@ -375,48 +375,61 @@ def run_checks_for_web(
         _put({"type": "error", "message": str(exc)})
 
 
+def _rdns_lookup(ip: str) -> str:
+    “””Non-invasive reverse DNS (PTR) lookup. Returns hostname or empty string.”””
+    import socket
+    try:
+        result = socket.gethostbyaddr(ip)
+        return result[0] or “”
+    except Exception:
+        return “”
+
+
 def _persist_host_data(db, host: str, metadata: Dict) -> None:
-    """Save host inventory data discovered via nmap/subnet scan to the DB."""
-    if "hosts" in metadata:
-        # Subnet scan â€“ multiple hosts
-        for h in metadata["hosts"]:
+    “””Save host inventory data discovered via nmap/subnet scan to the DB.”””
+    if “hosts” in metadata:
+        # Subnet scan – multiple hosts
+        for h in metadata[“hosts”]:
+            hostname = h.get(“hostname”, “”) or _rdns_lookup(h[“ip”])
             upsert_host_inventory(
                 db,
-                ip_address=h["ip"],
-                hostname=h.get("hostname", ""),
-                mac_address=h.get("mac", ""),
-                os_guess=h.get("os_guess", ""),
-                open_ports=h.get("open_ports", []),
-                services=h.get("services", {}),
+                ip_address=h[“ip”],
+                hostname=hostname,
+                mac_address=h.get(“mac”, “”),
+                os_guess=h.get(“os_guess”, “”),
+                open_ports=h.get(“open_ports”, []),
+                services=h.get(“services”, {}),
             )
-            for port, svc in h.get("services", {}).items():
+            for port, svc in h.get(“services”, {}).items():
                 upsert_host_service(
                     db,
-                    host_ip=h["ip"],
+                    host_ip=h[“ip”],
                     port=int(port),
-                    service_name=svc.get("name", ""),
-                    service_version=f"{svc.get('product','')} {svc.get('version','')}".strip(),
-                    banner=svc.get("banner", ""),
+                    service_name=svc.get(“name”, “”),
+                    service_version=f”{svc.get('product','')} {svc.get('version','')}”.strip(),
+                    banner=svc.get(“banner”, “”),
                 )
-    elif "open_ports" in metadata:
+    elif “open_ports” in metadata:
         # Single-host nmap scan
-        os_guesses = metadata.get("os_guesses", [])
-        os_guess = max(os_guesses, key=lambda x: x.get("accuracy", 0))["name"] if os_guesses else ""
+        os_guesses = metadata.get(“os_guesses”, [])
+        os_guess = max(os_guesses, key=lambda x: x.get(“accuracy”, 0))[“name”] if os_guesses else “”
+        hostname = metadata.get(“hostname”, “”) or _rdns_lookup(host)
         upsert_host_inventory(
             db,
             ip_address=host,
+            hostname=hostname,
             os_guess=os_guess,
-            open_ports=metadata.get("open_ports", []),
-            services=metadata.get("services", {}),
+            open_ports=metadata.get(“open_ports”, []),
+            services=metadata.get(“services”, {}),
         )
-        for port, svc in metadata.get("services", {}).items():
+        for port, svc in metadata.get(“services”, {}).items():
             upsert_host_service(
                 db,
                 host_ip=host,
                 port=int(port),
-                service_name=svc.get("name", ""),
-                service_version=f"{svc.get('product','')} {svc.get('version','')}".strip(),
-                banner=svc.get("banner", ""),
+                service_name=svc.get(“name”, “”),
+                service_version=f”{svc.get('product','')} {svc.get('version','')}”.strip(),
+                banner=svc.get(“banner”, “”),
             )
 
 

@@ -274,6 +274,39 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "all_scans": all_scans,
         })
 
+    @app.get("/topology", response_class=HTMLResponse)
+    async def topology_page(request: Request):
+        with get_db(db_path) as db:
+            hosts = get_host_inventory(db)
+            # Build edges: hosts that share a scan
+            cur = db.execute(
+                """
+                SELECT scan_id, target_host
+                FROM scan_results
+                ORDER BY scan_id
+                """
+            )
+            from collections import defaultdict
+            scan_hosts: dict = defaultdict(list)
+            for row in cur.fetchall():
+                scan_hosts[row["scan_id"]].append(row["target_host"])
+
+            edges_set: set = set()
+            for scan_id, ips in scan_hosts.items():
+                uniq = list(dict.fromkeys(ips))
+                for i in range(len(uniq)):
+                    for j in range(i + 1, min(i + 4, len(uniq))):
+                        a, b = sorted([uniq[i], uniq[j]])
+                        edges_set.add((a, b))
+
+            edges = [{"source": a, "target": b} for a, b in edges_set]
+
+        return _tr(templates, request, "topology.html", {
+            "active_page": "topology",
+            "hosts": hosts,
+            "edges": edges,
+        })
+
     @app.get("/hosts", response_class=HTMLResponse)
     async def hosts_page(request: Request):
         with get_db(db_path) as db:

@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Viridis – Security Platform{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23059669'/%3E%3Cpath d='M16 5 L25 9 L25 17 C25 21.5 21 25.5 16 27 C11 25.5 7 21.5 7 17 L7 9 Z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='17' r='3' fill='white'/%3E%3Cline x1='16' y1='14' x2='16' y2='10' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E">
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
@@ -21,12 +22,19 @@
 
     <!-- Logo -->
     <div class="px-4 py-4 border-b border-gray-800 flex items-center space-x-2.5">
-      <div class="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0">
-        <span class="text-white font-black text-sm">V</span>
+      <div class="w-9 h-9 flex-shrink-0">
+        <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <rect width="36" height="36" rx="8" fill="#059669"/>
+          <path d="M18 5 L28 9.5 L28 19 C28 24.2 23.5 28.8 18 30.5 C12.5 28.8 8 24.2 8 19 L8 9.5 Z"
+                fill="none" stroke="white" stroke-width="2.2" stroke-linejoin="round"/>
+          <circle cx="18" cy="19" r="3.2" fill="white"/>
+          <line x1="18" y1="15.8" x2="18" y2="11" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
+          <line x1="18" y1="19" x2="23" y2="14.5" stroke="rgba(255,255,255,0.45)" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
       </div>
       <div>
-        <div class="text-white font-bold text-sm">Viridis</div>
-        <div class="text-gray-500 text-xs">Security Platform</div>
+        <div class="text-white font-bold text-sm tracking-wide">Viridis</div>
+        <div class="text-emerald-600 text-xs font-medium">Security Platform</div>
       </div>
     </div>
 
