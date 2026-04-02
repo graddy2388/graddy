@@ -276,8 +276,40 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
 
     @app.get("/topology", response_class=HTMLResponse)
     async def topology_page(request: Request):
+        _SEV_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+
         with get_db(db_path) as db:
             hosts = get_host_inventory(db)
+
+            # Compute worst severity per IP from recent scan results
+            cur = db.execute(
+                """
+                SELECT target_host, findings
+                FROM scan_results
+                WHERE findings IS NOT NULL AND findings != '[]'
+                ORDER BY scan_id DESC
+                LIMIT 2000
+                """
+            )
+            worst_sev: dict = {}
+            for row in cur.fetchall():
+                ip = row["target_host"]
+                try:
+                    findings = _json.loads(row["findings"]) if isinstance(row["findings"], str) else (row["findings"] or [])
+                except Exception:
+                    findings = []
+                for f in findings:
+                    sev = f.get("severity", "info")
+                    if _SEV_ORDER.get(sev, 5) < _SEV_ORDER.get(worst_sev.get(ip, "none"), 99):
+                        worst_sev[ip] = sev
+
+            # Annotate hosts with worst_severity
+            hosts_annotated = []
+            for h in hosts:
+                hd = dict(h)
+                hd["worst_severity"] = worst_sev.get(h["ip_address"], "none")
+                hosts_annotated.append(hd)
+
             # Build edges: hosts that share a scan
             cur = db.execute(
                 """
@@ -303,7 +335,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
 
         return _tr(templates, request, "topology.html", {
             "active_page": "topology",
-            "hosts": hosts,
+            "hosts": hosts_annotated,
             "edges": edges,
         })
 

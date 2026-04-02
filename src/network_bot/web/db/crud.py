@@ -952,14 +952,16 @@ def upsert_host_inventory(
         db.execute(
             """
             UPDATE host_inventory
-            SET hostname = ?, mac_address = ?, os_guess = ?,
+            SET hostname = CASE WHEN ? != '' THEN ? ELSE hostname END,
+                mac_address = CASE WHEN ? != '' THEN ? ELSE mac_address END,
+                os_guess = CASE WHEN ? != '' THEN ? ELSE os_guess END,
                 open_ports = ?, services = ?, last_seen = ?, is_alive = 1
             WHERE ip_address = ?
             """,
             (
-                hostname or "",
-                mac_address or "",
-                os_guess or "",
+                hostname or "", hostname or "",
+                mac_address or "", mac_address or "",
+                os_guess or "", os_guess or "",
                 json.dumps(open_ports or []),
                 json.dumps(services or {}),
                 now,
