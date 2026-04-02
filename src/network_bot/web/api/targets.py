@@ -208,7 +208,9 @@ def make_router(get_db_dep) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            import logging
+            logging.getLogger(__name__).exception("Error creating target")
+            raise HTTPException(status_code=400, detail="Failed to create target") from exc
 
     @r.put("/{id}")
     def update(id: int, body: TargetUpdate, db=Depends(get_db_dep)):

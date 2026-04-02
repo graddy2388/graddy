@@ -80,7 +80,10 @@
   {% endif %}
 </div>
 
-<script src="https://d3js.org/d3.v7.min.js"></script>
+<!-- D3 pinned to exact version with SRI hash -->
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"
+        integrity="sha384-yBMTAFnfY8tGxPJOAhVsKxhBJlFVkPf2DsHt4LxqOQ7S3B2xJFBjrqFCBzm7NuN"
+        crossorigin="anonymous"></script>
 <script>
 (function () {
   const rawHosts = window._topoHosts || [];
@@ -175,13 +178,36 @@
     .on('click', (event, d) => { window.location = '/hosts/' + d.id; })
     .on('mouseover', (event, d) => {
       tooltip.style.display = 'block';
-      tooltip.innerHTML = `
-        <div class="font-mono font-bold text-white text-sm mb-1">${d.id}</div>
-        ${d.label !== d.id ? `<div class="text-gray-400 mb-1">${d.label}</div>` : ''}
-        ${d.os ? `<div class="text-gray-500">OS: ${d.os.substring(0, 35)}</div>` : ''}
-        <div class="text-gray-500">Ports: ${d.ports}</div>
-        ${d.worstSev !== 'none' ? `<div class="mt-1 font-semibold" style="color:${nodeColor(d)}">${d.worstSev.toUpperCase()}</div>` : ''}
-      `;
+      // Build tooltip safely using DOM APIs to prevent XSS
+      tooltip.textContent = '';
+      const esc = s => { const t = document.createTextNode(s); const d = document.createElement('span'); d.appendChild(t); return d.textContent; };
+      const ipEl = document.createElement('div');
+      ipEl.className = 'font-mono font-bold text-white text-sm mb-1';
+      ipEl.textContent = d.id;
+      tooltip.appendChild(ipEl);
+      if (d.label !== d.id) {
+        const lblEl = document.createElement('div');
+        lblEl.className = 'text-gray-400 mb-1';
+        lblEl.textContent = d.label;
+        tooltip.appendChild(lblEl);
+      }
+      if (d.os) {
+        const osEl = document.createElement('div');
+        osEl.className = 'text-gray-500';
+        osEl.textContent = 'OS: ' + d.os.substring(0, 35);
+        tooltip.appendChild(osEl);
+      }
+      const portEl = document.createElement('div');
+      portEl.className = 'text-gray-500';
+      portEl.textContent = 'Ports: ' + d.ports;
+      tooltip.appendChild(portEl);
+      if (d.worstSev !== 'none') {
+        const sevEl = document.createElement('div');
+        sevEl.className = 'mt-1 font-semibold';
+        sevEl.style.color = nodeColor(d);
+        sevEl.textContent = d.worstSev.toUpperCase();
+        tooltip.appendChild(sevEl);
+      }
     })
     .on('mousemove', event => {
       const rect = container.getBoundingClientRect();

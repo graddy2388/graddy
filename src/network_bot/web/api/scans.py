@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, field_validator, model_validator
 
@@ -455,7 +455,16 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         return {**scan, "results": results}
 
     @r.post("", status_code=201)
-    async def trigger_scan(body: ScanIn, db=Depends(get_db_dep)):
+    async def trigger_scan(request: Request, body: ScanIn, db=Depends(get_db_dep)):
+        # Rate limiting: prevent DoS via excessive scan triggers
+        from .. import check_scan_rate_limit
+        client_ip = request.client.host if request.client else "unknown"
+        if not check_scan_rate_limit(client_ip):
+            raise HTTPException(
+                status_code=429,
+                detail="Too many scan requests. Please wait before triggering another scan.",
+            )
+
         # Load profile if specified
         profile = None
         if body.profile_id:

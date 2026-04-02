@@ -77,6 +77,13 @@ RUN pip install --no-cache-dir --no-deps .
 
 RUN mkdir -p data logs reports nuclei-templates
 
+# Run as a non-root user for defence-in-depth
+RUN groupadd --gid 1001 netbot \
+    && useradd --uid 1001 --gid netbot --shell /bin/sh --create-home netbot \
+    && chown -R netbot:netbot /app
+
+USER netbot
+
 EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
 ENV NETWORK_BOT_ROOT=/app

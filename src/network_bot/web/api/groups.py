@@ -45,7 +45,9 @@ def make_router(get_db_dep) -> APIRouter:
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            import logging
+            logging.getLogger(__name__).exception("Error creating group")
+            raise HTTPException(status_code=400, detail="Failed to create group") from exc
 
     @r.put("/{id}")
     def update(id: int, body: GroupIn, db=Depends(get_db_dep)):

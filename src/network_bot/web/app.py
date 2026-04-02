@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .db.crud import (
     get_scans, get_targets, get_groups, get_tags, get_scan, get_scan_results,
@@ -51,8 +53,33 @@ def _tr(templates: Jinja2Templates, request: Request, name: str, ctx: dict):
         return templates.TemplateResponse(name=name, context=ctx)
 
 
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add security-related HTTP response headers to every response."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        # CSP: allow same-origin + known CDNs used for Tailwind/Alpine/D3
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com "
+            "https://cdn.jsdelivr.net https://d3js.org; "
+            "style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com; "
+            "img-src 'self' data:; "
+            "connect-src 'self' ws: wss:; "
+            "font-src 'self'; "
+            "object-src 'none'; "
+            "frame-ancestors 'none';"
+        )
+        return response
+
+
 def create_app(config: Dict[str, Any]) -> FastAPI:
     app = FastAPI(title="Viridis – Security Platform", docs_url="/api/docs")
+    app.add_middleware(SecurityHeadersMiddleware)
 
     db_path = config.get("web", {}).get("db_path", "data/network_bot.db")
 

@@ -80,8 +80,12 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, scheduler) -> 
                 profile_id=body.profile_id,
                 enabled=int(body.enabled),
             )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except Exception as exc:
-            raise HTTPException(status_code=400, detail=str(exc))
+            import logging
+            logging.getLogger(__name__).exception("Error creating schedule")
+            raise HTTPException(status_code=400, detail="Failed to create schedule") from exc
 
         if body.enabled and scheduler is not None:
             register_schedule(
