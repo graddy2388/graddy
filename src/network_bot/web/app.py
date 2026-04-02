@@ -4,6 +4,10 @@ network_bot.web.app – FastAPI application factory.
 from __future__ import annotations
 
 import asyncio
+import base64
+import logging
+import os
+import secrets
 import sqlite3
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -13,6 +17,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
+
+_log = logging.getLogger(__name__)
 
 from .db.crud import (
     get_scans, get_targets, get_groups, get_tags, get_scan, get_scan_results,
@@ -53,6 +59,43 @@ def _tr(templates: Jinja2Templates, request: Request, name: str, ctx: dict):
         return templates.TemplateResponse(name=name, context=ctx)
 
 
+class BasicAuthMiddleware(BaseHTTPMiddleware):
+    """HTTP Basic Auth gate. Active only when credentials are configured."""
+
+    def __init__(self, app, username: str, password: str):
+        super().__init__(app)
+        # Pre-encode expected credentials for constant-time comparison
+        self._username = username
+        self._password = password
+
+    async def dispatch(self, request: Request, call_next):
+        # WebSocket handshakes come in as HTTP upgrades — skip Basic Auth
+        # for WS paths; they use per-scan token auth instead.
+        if request.url.path.startswith("/ws/"):
+            return await call_next(request)
+
+        auth = request.headers.get("Authorization", "")
+        if auth.startswith("Basic "):
+            try:
+                decoded = base64.b64decode(auth[6:]).decode("utf-8", errors="replace")
+                supplied_user, _, supplied_pass = decoded.partition(":")
+                user_ok = secrets.compare_digest(supplied_user, self._username)
+                pass_ok = secrets.compare_digest(supplied_pass, self._password)
+                if user_ok and pass_ok:
+                    return await call_next(request)
+            except Exception:
+                pass
+
+        return Response(
+            content="Unauthorized",
+            status_code=401,
+            headers={
+                "WWW-Authenticate": 'Basic realm="Viridis Security Platform"',
+                "Cache-Control": "no-store",
+            },
+        )
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Add security-related HTTP response headers to every response."""
 
@@ -80,6 +123,21 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 def create_app(config: Dict[str, Any]) -> FastAPI:
     app = FastAPI(title="Viridis – Security Platform", docs_url="/api/docs")
     app.add_middleware(SecurityHeadersMiddleware)
+
+    # ── Basic Auth (opt-in via env vars or config) ─────────────────────────
+    # Set VIRIDIS_USERNAME and VIRIDIS_PASSWORD env vars to enable.
+    # Falls back to config["web"]["auth"]["username"/"password"] if env unset.
+    _auth_cfg = config.get("web", {}).get("auth", {})
+    _auth_user = os.environ.get("VIRIDIS_USERNAME") or _auth_cfg.get("username", "")
+    _auth_pass = os.environ.get("VIRIDIS_PASSWORD") or _auth_cfg.get("password", "")
+    if _auth_user and _auth_pass:
+        app.add_middleware(BasicAuthMiddleware, username=_auth_user, password=_auth_pass)
+        _log.info("Basic Auth enabled for user '%s'", _auth_user)
+    else:
+        _log.warning(
+            "Basic Auth is DISABLED. Set VIRIDIS_USERNAME and VIRIDIS_PASSWORD "
+            "environment variables to protect this interface."
+        )
 
     db_path = config.get("web", {}).get("db_path", "data/network_bot.db")
 
@@ -522,7 +580,14 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     # ── WebSocket for live scan progress ──────────────────────────────────
 
     @app.websocket("/ws/scan/{scan_id}")
-    async def ws_scan_progress(websocket: WebSocket, scan_id: int):
+    async def ws_scan_progress(websocket: WebSocket, scan_id: int, token: str = ""):
+        from . import verify_scan_token
+        # Validate the per-scan token before accepting the WebSocket upgrade.
+        # The token is returned by POST /api/scans and passed as ?token=...
+        if not verify_scan_token(scan_id, token):
+            await websocket.close(code=4401)
+            return
+
         await websocket.accept()
         try:
             for _ in range(50):

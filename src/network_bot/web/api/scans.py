@@ -528,12 +528,14 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
         queue: asyncio.Queue = asyncio.Queue()
         active_scans[scan_id] = queue
 
+        # Generate a per-scan WebSocket token so only the requester can connect
+        from .. import create_scan_token, revoke_scan_token
+        ws_token = create_scan_token(scan_id)
+
         def _run():
             try:
                 run_checks_for_web(targets, config, db_path, scan_id, queue, loop)
             except Exception as _exc:
-                # Last-resort safety net: run_checks_for_web already handles its own
-                # exceptions, but if something slips through, emit an error event.
                 loop.call_soon_threadsafe(
                     queue.put_nowait,
                     {"type": "error", "message": f"Scan thread crashed: {_exc}"},
@@ -541,11 +543,12 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
             import time
             time.sleep(2)
             active_scans.pop(scan_id, None)
+            revoke_scan_token(scan_id)
 
         thread = threading.Thread(target=_run, daemon=True)
         thread.start()
 
-        return {"scan_id": scan_id}
+        return {"scan_id": scan_id, "ws_token": ws_token}
 
     @r.get("/{id}/export")
     def export_scan(id: int, db=Depends(get_db_dep)):

@@ -7,6 +7,7 @@ return plain dicts / lists-of-dicts so they're easy to serialise.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
@@ -14,6 +15,20 @@ from typing import Any, Dict, List, Optional
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+_SAFE_IDENT_RE = re.compile(r'^[a-z][a-z0-9_]*$')
+
+
+def _guard_identifiers(fields: Dict[str, Any]) -> None:
+    """Raise ValueError if any key in a dynamic SET clause is not a safe SQL identifier.
+
+    Keys come from an allowlist intersection, so this is a defence-in-depth
+    guard against future allowlist widening accidentally introducing injection.
+    """
+    bad = [k for k in fields if not _SAFE_IDENT_RE.match(k)]
+    if bad:
+        raise ValueError(f"Unsafe SQL identifier(s) rejected: {bad}")
+
 
 def _row(row) -> Optional[Dict[str, Any]]:
     return dict(row) if row else None
@@ -235,6 +250,7 @@ def update_target(db, id: int, **fields) -> Optional[Dict[str, Any]]:
     if not update_fields:
         return get_target(db, id)
 
+    _guard_identifiers(update_fields)
     set_clause = ", ".join(f"{k} = ?" for k in update_fields)
     set_clause += ", updated_at = datetime('now')"
     values = list(update_fields.values()) + [id]
@@ -771,6 +787,7 @@ def update_scan_profile(db, id: int, **fields) -> Optional[Dict[str, Any]]:
             update_fields[list_field] = json.dumps(list(update_fields[list_field]))
     if not update_fields:
         return get_scan_profile(db, id)
+    _guard_identifiers(update_fields)
     set_clause = ", ".join(f"{k} = ?" for k in update_fields)
     set_clause += ", updated_at = datetime('now')"
     values = list(update_fields.values()) + [id]
@@ -839,6 +856,7 @@ def update_schedule(db, id: int, **fields) -> Optional[Dict[str, Any]]:
     update_fields = {k: v for k, v in fields.items() if k in allowed}
     if not update_fields:
         return get_schedule(db, id)
+    _guard_identifiers(update_fields)
     set_clause = ", ".join(f"{k} = ?" for k in update_fields)
     values = list(update_fields.values()) + [id]
     db.execute(f"UPDATE schedules SET {set_clause} WHERE id = ?", values)

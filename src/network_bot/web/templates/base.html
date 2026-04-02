@@ -372,15 +372,15 @@
           })
           .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t.slice(0,200)); }); return r.json(); })
           .then(d => {
-            if (d.scan_id) { this.scanId = d.scan_id; this._connectWs(d.scan_id); }
+            if (d.scan_id) { this.scanId = d.scan_id; this._connectWs(d.scan_id, d.ws_token || ''); }
             else { this.errorMsg = d.detail || 'Failed to start scan'; this.running = false; }
           })
           .catch(e => { this.errorMsg = String(e).replace('Error: ',''); this.running = false; });
         },
 
-        _connectWs(id) {
+        _connectWs(id, token) {
           const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-          this.ws = new WebSocket(`${proto}://${location.host}/ws/scan/${id}`);
+          this.ws = new WebSocket(`${proto}://${location.host}/ws/scan/${id}?token=${encodeURIComponent(token)}`);
           const s = this;
           this.ws.onmessage = e => {
             const ev = JSON.parse(e.data);
