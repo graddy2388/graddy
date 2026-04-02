@@ -13,6 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     netcat-openbsd \
     curl \
     git \
+    gosu \
     unzip \
     iputils-ping \
     net-tools \
@@ -77,15 +78,19 @@ RUN pip install --no-cache-dir --no-deps .
 
 RUN mkdir -p data logs reports nuclei-templates
 
-# Run as a non-root user for defence-in-depth
+# Create non-root user. The container starts as root so the entrypoint can
+# fix volume-mount ownership, then drops to this user before exec.
 RUN groupadd --gid 1001 netbot \
     && useradd --uid 1001 --gid netbot --shell /bin/sh --create-home netbot \
     && chown -R netbot:netbot /app
 
-USER netbot
+# Entrypoint: chowns volume-mounted dirs at runtime, then drops to netbot
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
 ENV NETWORK_BOT_ROOT=/app
 
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["network-bot"]
