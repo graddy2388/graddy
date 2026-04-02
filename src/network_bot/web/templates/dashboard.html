@@ -191,15 +191,16 @@
         {% if worst_offenders %}
         <div class="divide-y divide-gray-800">
           {% for o in worst_offenders %}
-          <div class="px-4 py-3 flex items-center justify-between">
-            <div class="min-w-0">
+          <div class="flex items-center justify-between
+            {{ 'border-l-[3px] border-red-500' if o.critical > 0 else 'border-l-[3px] border-orange-500' if o.high > 0 else 'border-l-[3px] border-yellow-500' if o.medium > 0 else 'border-l-[3px] border-gray-700' }}">
+            <div class="flex-1 px-4 py-3 min-w-0">
               <p class="text-sm text-white font-mono truncate">{{ o.host }}</p>
               <p class="text-xs text-gray-500">{{ o.total }} findings</p>
             </div>
-            <div class="flex items-center space-x-2 flex-shrink-0 ml-3">
-              {% if o.critical > 0 %}<span class="text-xs text-red-400 font-bold">{{ o.critical }} critical</span>{% endif %}
-              {% if o.high > 0 %}<span class="text-xs text-orange-400 font-bold">{{ o.high }} high</span>{% endif %}
-              {% if o.medium > 0 %}<span class="text-xs text-yellow-400">{{ o.medium }} medium</span>{% endif %}
+            <div class="flex items-center space-x-2 flex-shrink-0 mr-4">
+              {% if o.critical > 0 %}<span class="text-xs text-red-400 font-bold">{{ o.critical }}C</span>{% endif %}
+              {% if o.high > 0 %}<span class="text-xs text-orange-400 font-bold">{{ o.high }}H</span>{% endif %}
+              {% if o.medium > 0 %}<span class="text-xs text-yellow-400">{{ o.medium }}M</span>{% endif %}
             </div>
           </div>
           {% endfor %}
@@ -217,7 +218,7 @@
   <!-- Recent Scans -->
   <div>
     <div class="flex items-center justify-between mb-3">
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider">Recent Scans</h2>
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2"><span class="w-2 h-2 rounded-sm bg-blue-500 inline-block"></span>Recent Scans</h2>
       <a href="/scans" class="text-xs text-emerald-500 hover:text-emerald-400">View all →</a>
     </div>
     {% if scans %}
@@ -231,10 +232,15 @@
             <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">C</th>
             <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">H</th>
             <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">M</th>
+            <th class="px-4 py-2.5 text-left text-xs font-medium text-gray-500 uppercase">Severity Mix</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-800">
           {% for scan in scans %}
+          {% set c = scan.critical_count or 0 %}
+          {% set h = scan.high_count or 0 %}
+          {% set m = scan.medium_count or 0 %}
+          {% set total_findings = c + h + m %}
           <tr class="hover:bg-gray-800 cursor-pointer transition-colors"
               onclick="window.location='/scans/{{ scan.id }}'">
             <td class="px-4 py-3 text-xs font-mono text-gray-400">#{{ scan.id }}</td>
@@ -248,9 +254,20 @@
                 <span class="px-2 py-0.5 rounded-full text-xs bg-red-900 text-red-400">Failed</span>
               {% endif %}
             </td>
-            <td class="px-4 py-3 text-xs font-bold text-red-400">{{ scan.critical_count or 0 }}</td>
-            <td class="px-4 py-3 text-xs font-bold text-orange-400">{{ scan.high_count or 0 }}</td>
-            <td class="px-4 py-3 text-xs font-bold text-yellow-400">{{ scan.medium_count or 0 }}</td>
+            <td class="px-4 py-3 text-xs font-bold text-red-400">{{ c }}</td>
+            <td class="px-4 py-3 text-xs font-bold text-orange-400">{{ h }}</td>
+            <td class="px-4 py-3 text-xs font-bold text-yellow-400">{{ m }}</td>
+            <td class="px-4 py-3">
+              {% if total_findings > 0 %}
+              <div class="flex h-2 w-24 rounded-full overflow-hidden gap-px">
+                {% if c > 0 %}<div class="bg-red-500 flex-shrink-0" style="width:{{ (c / total_findings * 100)|int }}%"></div>{% endif %}
+                {% if h > 0 %}<div class="bg-orange-500 flex-shrink-0" style="width:{{ (h / total_findings * 100)|int }}%"></div>{% endif %}
+                {% if m > 0 %}<div class="bg-yellow-500 flex-shrink-0" style="width:{{ (m / total_findings * 100)|int }}%"></div>{% endif %}
+              </div>
+              {% else %}
+              <div class="h-2 w-24 rounded-full bg-gray-800"></div>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
