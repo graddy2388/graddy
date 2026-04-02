@@ -128,6 +128,11 @@ def _load_check_registry():
         registry["hydra"] = HydraCheck
     except ImportError:
         pass
+    try:
+        from ...checks.headers_check import HeadersCheck
+        registry["headers"] = HeadersCheck
+    except ImportError:
+        pass
     return registry
 
 

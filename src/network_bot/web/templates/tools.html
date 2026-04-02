@@ -190,6 +190,17 @@
         <button @click="open('nuclei')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Nuclei</button>
       </div>
 
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <h3 class="text-sm font-semibold text-white">Header Analyzer</h3>
+            <span class="text-xs text-gray-600 font-mono">headers</span>
+          </div>
+          <p class="text-xs text-gray-500">Audit HTTP response headers — HSTS, CSP, CORS, X-Frame-Options, info disclosure</p>
+        </div>
+        <button @click="open('headers')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Analyze Headers</button>
+      </div>
+
     </div>
   </section>
 
@@ -265,7 +276,8 @@
                      activeTool==='sqlmap'     ? runHost(['sqlmap']) :
                      activeTool==='nuclei'     ? runHost(['nuclei']) :
                      activeTool==='enum4linux' ? runHost(['enum4linux']) :
-                     activeTool==='hydra'      ? runHost(['hydra']) : null"
+                     activeTool==='hydra'      ? runHost(['hydra']) :
+                     activeTool==='headers'    ? runHost(['headers']) : null"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500">
           </div>
           <div x-show="error" class="text-red-400 text-xs bg-red-950 border border-red-900 rounded-lg px-3 py-2" x-text="error"></div>
@@ -286,7 +298,8 @@
               activeTool==='sqlmap'     ? runHost(['sqlmap']) :
               activeTool==='nuclei'     ? runHost(['nuclei']) :
               activeTool==='enum4linux' ? runHost(['enum4linux']) :
-              activeTool==='hydra'      ? runHost(['hydra']) : null"
+              activeTool==='hydra'      ? runHost(['hydra']) :
+              activeTool==='headers'    ? runHost(['headers']) : null"
             class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
             Run
           </button>
