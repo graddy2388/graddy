@@ -43,7 +43,7 @@
       <p class="text-sm text-gray-500 mt-0.5">Security posture overview</p>
     </div>
     <button onclick="window.startScan({})"
-            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">
+            class="flex items-center space-x-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-colors shadow-lg shadow-emerald-900/50 ring-1 ring-emerald-500/30">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -54,35 +54,68 @@
 
   <!-- Stat Cards -->
   <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wider">Targets</p>
-      <p class="text-3xl font-bold text-white mt-1">{{ total_targets }}</p>
-      <a href="/targets" class="text-xs text-emerald-500 hover:text-emerald-400 mt-1 inline-block">Manage →</a>
+    <!-- Targets -->
+    <div class="bg-gray-900 border border-gray-800 border-t-2 border-t-emerald-500 rounded-xl p-4 flex items-start justify-between">
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-medium">Targets</p>
+        <p class="text-4xl font-extrabold text-white mt-1 leading-none">{{ total_targets }}</p>
+        <a href="/targets" class="text-xs text-emerald-500 hover:text-emerald-400 mt-2 inline-block font-medium">Manage →</a>
+      </div>
+      <div class="w-10 h-10 bg-emerald-900/40 rounded-lg flex items-center justify-center flex-shrink-0 ml-2">
+        <svg class="w-5 h-5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+      </div>
     </div>
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wider">Hosts Found</p>
-      <p class="text-3xl font-bold text-white mt-1">{{ total_hosts or 0 }}</p>
-      <a href="/hosts" class="text-xs text-emerald-500 hover:text-emerald-400 mt-1 inline-block">View all →</a>
+    <!-- Hosts Found -->
+    <div class="bg-gray-900 border border-gray-800 border-t-2 border-t-cyan-500 rounded-xl p-4 flex items-start justify-between">
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-medium">Hosts Found</p>
+        <p class="text-4xl font-extrabold text-white mt-1 leading-none">{{ total_hosts or 0 }}</p>
+        <a href="/hosts" class="text-xs text-cyan-500 hover:text-cyan-400 mt-2 inline-block font-medium">View all →</a>
+      </div>
+      <div class="w-10 h-10 bg-cyan-900/40 rounded-lg flex items-center justify-center flex-shrink-0 ml-2">
+        <svg class="w-5 h-5 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
+        </svg>
+      </div>
     </div>
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wider">Total Scans</p>
-      <p class="text-3xl font-bold text-white mt-1">{{ total_scans or 0 }}</p>
-      <a href="/scans" class="text-xs text-emerald-500 hover:text-emerald-400 mt-1 inline-block">History →</a>
+    <!-- Total Scans -->
+    <div class="bg-gray-900 border border-gray-800 border-t-2 border-t-violet-500 rounded-xl p-4 flex items-start justify-between">
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-medium">Total Scans</p>
+        <p class="text-4xl font-extrabold text-white mt-1 leading-none">{{ total_scans or 0 }}</p>
+        <a href="/scans" class="text-xs text-violet-400 hover:text-violet-300 mt-2 inline-block font-medium">History →</a>
+      </div>
+      <div class="w-10 h-10 bg-violet-900/40 rounded-lg flex items-center justify-center flex-shrink-0 ml-2">
+        <svg class="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
     </div>
-    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
-      <p class="text-xs text-gray-500 uppercase tracking-wider">Last Scan</p>
-      <p class="text-sm font-semibold text-white mt-1">
-        {% if last_scan %}{{ last_scan.started_at[:16].replace('T',' ') }}{% else %}Never{% endif %}
-      </p>
-      {% if last_scan %}
-      <a href="/scans/{{ last_scan.id }}" class="text-xs text-emerald-500 hover:text-emerald-400 mt-1 inline-block">View →</a>
-      {% endif %}
+    <!-- Last Scan -->
+    <div class="bg-gray-900 border border-gray-800 border-t-2 border-t-amber-500 rounded-xl p-4 flex items-start justify-between">
+      <div>
+        <p class="text-xs text-gray-500 uppercase tracking-wider font-medium">Last Scan</p>
+        <p class="text-sm font-bold text-white mt-1 leading-snug">
+          {% if last_scan %}{{ last_scan.started_at[:16].replace('T',' ') }}{% else %}<span class="text-gray-600">Never</span>{% endif %}
+        </p>
+        {% if last_scan %}
+        <a href="/scans/{{ last_scan.id }}" class="text-xs text-amber-500 hover:text-amber-400 mt-2 inline-block font-medium">View →</a>
+        {% endif %}
+      </div>
+      <div class="w-10 h-10 bg-amber-900/40 rounded-lg flex items-center justify-center flex-shrink-0 ml-2">
+        <svg class="w-5 h-5 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
     </div>
   </div>
 
   <!-- Pen Test Coverage -->
   <div>
-    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Coverage</h2>
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><span class="w-2 h-2 rounded-sm bg-emerald-500 inline-block"></span>Coverage</h2>
     <div class="grid grid-cols-2 lg:grid-cols-3 gap-3">
 
       {% set areas = [
@@ -123,22 +156,20 @@
 
     <!-- Top Threats -->
     <div>
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Top Threats</h2>
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><span class="w-2 h-2 rounded-sm bg-red-500 inline-block"></span>Top Threats</h2>
       <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         {% if top_threats %}
         <div class="divide-y divide-gray-800">
           {% for t in top_threats %}
-          <div class="px-4 py-3 flex items-center justify-between">
-            <div class="flex items-center space-x-3 min-w-0">
-              <span class="w-2 h-2 rounded-full flex-shrink-0
-                {{ 'bg-red-500' if t.severity == 'critical' else 'bg-orange-500' if t.severity == 'high' else 'bg-yellow-500' if t.severity == 'medium' else 'bg-emerald-500' }}">
-              </span>
+          <div class="flex items-center justify-between
+            {{ 'border-l-[3px] border-red-500' if t.severity == 'critical' else 'border-l-[3px] border-orange-500' if t.severity == 'high' else 'border-l-[3px] border-yellow-500' if t.severity == 'medium' else 'border-l-[3px] border-emerald-500' }}">
+            <div class="flex-1 px-4 py-3 flex items-center space-x-3 min-w-0">
               <div class="min-w-0">
                 <p class="text-sm text-white truncate">{{ t.title }}</p>
                 <p class="text-xs text-gray-500 font-mono truncate">{{ t.target_host }}</p>
               </div>
             </div>
-            <span class="text-xs font-medium ml-3 flex-shrink-0
+            <span class="text-xs font-semibold mr-4 flex-shrink-0
               {{ 'text-red-400' if t.severity == 'critical' else 'text-orange-400' if t.severity == 'high' else 'text-yellow-400' if t.severity == 'medium' else 'text-emerald-400' }}">
               {{ t.severity|upper }}
             </span>
@@ -155,7 +186,7 @@
 
     <!-- Worst Offenders -->
     <div>
-      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Worst Offenders</h2>
+      <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2"><span class="w-2 h-2 rounded-sm bg-orange-500 inline-block"></span>Worst Offenders</h2>
       <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-hidden">
         {% if worst_offenders %}
         <div class="divide-y divide-gray-800">

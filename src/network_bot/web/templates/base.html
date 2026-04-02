@@ -4,14 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Viridis – Security Platform{% endblock %}</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23059669'/%3E%3Cpath d='M16 5 L25 9 L25 17 C25 21.5 21 25.5 16 27 C11 25.5 7 21.5 7 17 L7 9 Z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3Ccircle cx='16' cy='17' r='3' fill='white'/%3E%3Cline x1='16' y1='14' x2='16' y2='10' stroke='white' stroke-width='1.5'/%3E%3C/svg%3E">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23059669'/%3E%3Cstop offset='100%25' stop-color='%23065f46'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Cpath d='M9 8 L16 21 L23 8' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='9' cy='8' r='2' fill='white'/%3E%3Ccircle cx='23' cy='8' r='2' fill='white'/%3E%3Ccircle cx='16' cy='21' r='2' fill='white'/%3E%3Cpath d='M11 5 A8 8 0 0 1 21 5' fill='none' stroke='rgba(255,255,255,0.45)' stroke-width='1.3' stroke-linecap='round'/%3E%3C/svg%3E">
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
     .caret { transition: transform 0.18s ease; }
     .caret.open { transform: rotate(90deg); }
-    .nav-child { padding-left: 2rem; }
   </style>
 </head>
 <body class="h-full flex bg-gray-950 text-white">
@@ -24,17 +23,26 @@
     <div class="px-4 py-4 border-b border-gray-800 flex items-center space-x-2.5">
       <div class="w-9 h-9 flex-shrink-0">
         <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <rect width="36" height="36" rx="8" fill="#059669"/>
-          <path d="M18 5 L28 9.5 L28 19 C28 24.2 23.5 28.8 18 30.5 C12.5 28.8 8 24.2 8 19 L8 9.5 Z"
-                fill="none" stroke="white" stroke-width="2.2" stroke-linejoin="round"/>
-          <circle cx="18" cy="19" r="3.2" fill="white"/>
-          <line x1="18" y1="15.8" x2="18" y2="11" stroke="white" stroke-width="1.8" stroke-linecap="round"/>
-          <line x1="18" y1="19" x2="23" y2="14.5" stroke="rgba(255,255,255,0.45)" stroke-width="1.2" stroke-linecap="round"/>
+          <defs>
+            <linearGradient id="vgrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#10b981"/>
+              <stop offset="100%" stop-color="#065f46"/>
+            </linearGradient>
+          </defs>
+          <rect width="36" height="36" rx="8" fill="url(#vgrad)"/>
+          <!-- V strokes -->
+          <path d="M10 10 L18 24 L26 10" fill="none" stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <!-- Node circles at endpoints and bottom -->
+          <circle cx="10" cy="10" r="2.2" fill="white"/>
+          <circle cx="26" cy="10" r="2.2" fill="white"/>
+          <circle cx="18" cy="24" r="2.2" fill="white"/>
+          <!-- Scanning arc above V -->
+          <path d="M12 7 A8.5 8.5 0 0 1 24 7" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="1.4" stroke-linecap="round"/>
         </svg>
       </div>
       <div>
         <div class="text-white font-bold text-sm tracking-wide">Viridis</div>
-        <div class="text-emerald-600 text-xs font-medium">Security Platform</div>
+        <div class="text-emerald-500 text-xs font-medium">Security Platform</div>
       </div>
     </div>
 
@@ -269,29 +277,36 @@
       padding: 0.5rem 0.75rem; border-radius: 0.5rem;
       font-size: 0.875rem; font-weight: 500;
       color: #9ca3af; width: 100%; transition: background-color 0.15s, color 0.15s;
+      border-left: 2px solid transparent;
     }
-    .nav-top:hover  { background: #1f2937; color: #fff; }
-    .nav-top.active { background: #065f46; color: #fff; }
+    .nav-top:hover  { background: #1f2937; color: #f3f4f6; }
+    .nav-top.active { background: #064e3b; color: #fff; border-left: 2px solid #10b981; padding-left: calc(0.75rem - 2px); }
     .nav-section {
       display: flex; align-items: center; justify-content: space-between;
-      width: 100%; padding: 0.375rem 0.75rem; margin-top: 0.375rem;
-      border-radius: 0.375rem; font-size: 0.7rem; font-weight: 600;
-      letter-spacing: 0.06em; text-transform: uppercase;
+      width: 100%; padding: 0.375rem 0.75rem; margin-top: 0.625rem;
+      border-radius: 0.375rem; font-size: 0.65rem; font-weight: 800;
+      letter-spacing: 0.1em; text-transform: uppercase;
       color: #6b7280; transition: background-color 0.15s, color 0.15s;
+      border-left: 2px solid transparent;
     }
     .nav-section:hover { background: #1f2937; color: #d1d5db; }
+    .nav-section.active { color: #6ee7b7; border-left: 2px solid #10b981; padding-left: calc(0.75rem - 2px); }
     .nav-child {
       display: block; padding: 0.3rem 0.75rem 0.3rem 2rem;
-      border-radius: 0.375rem; font-size: 0.8125rem;
-      color: #9ca3af; transition: background-color 0.15s, color 0.15s;
+      border-radius: 0 0.375rem 0.375rem 0;
+      font-size: 0.8125rem;
+      color: #9ca3af; transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+      border-left: 2px solid transparent;
     }
-    .nav-child:hover  { background: #1f2937; color: #fff; }
-    .nav-child.active { color: #34d399; font-weight: 500; }
+    .nav-child:hover  { background: #1f2937; color: #f3f4f6; border-left-color: #4b5563; }
+    .nav-child.active { color: #34d399; font-weight: 600; background: #022c22; border-left: 2px solid #10b981; padding-left: calc(2rem - 2px); }
     .nav-subheader {
-      padding: 0.5rem 0.75rem 0.1rem 2rem;
-      font-size: 0.65rem; font-weight: 600; letter-spacing: 0.06em;
+      padding: 0.5rem 0.75rem 0.15rem 2rem;
+      font-size: 0.6rem; font-weight: 800; letter-spacing: 0.1em;
       text-transform: uppercase; color: #4b5563;
+      border-top: 1px solid #1f2937; margin-top: 0.25rem;
     }
+    .nav-subheader:first-child { border-top: none; margin-top: 0; }
   </style>
 
   <script>
