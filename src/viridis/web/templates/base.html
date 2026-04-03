@@ -342,11 +342,6 @@
         startTime: null, elapsed: '0s', _timerHandle: null,
 
         init() {
-          /* On every page load: always force the modal closed and reset all state.
-             The modal should ONLY open when the user explicitly triggers a scan via
-             startScan(). A running scan in the DB at startup means it was orphaned
-             (the backend startup cleanup will have already marked it failed).
-             We never auto-reopen the modal on page load. */
           this.open = false;
           this.running = false;
           this.completed = false;
@@ -364,43 +359,50 @@
         _push(msg) {
           const now = new Date();
           const ts = now.toTimeString().slice(0,8);
-          this.feed.push({...msg, ts});
+          // Use spread assignment so Alpine always detects the array change
+          this.feed = [...this.feed, {...msg, ts}];
           this.$nextTick(() => { const el = this.$refs.feed; if (el) el.scrollTop = el.scrollHeight; });
         },
 
         _startTimer() {
           if (this._timerHandle) clearInterval(this._timerHandle);
+          const s = this;
           this._timerHandle = setInterval(() => {
-            if (!this.running) { clearInterval(this._timerHandle); return; }
-            const s = Math.floor((Date.now() - this.startTime) / 1000);
-            this.elapsed = s < 60 ? s + 's' : Math.floor(s/60) + 'm ' + (s%60) + 's';
-            /* Fallback poll: if WS missed the complete event, check DB every 10s */
-            if (this.scanId && s > 0 && s % 10 === 0) {
-              fetch('/api/scans/' + this.scanId)
-                .then(r => r.ok ? r.json() : null)
-                .then(scan => {
-                  if (!scan || !this.running) return;
-                  if (scan.status === 'completed' || scan.status === 'failed') {
-                    this.completed = scan.status === 'completed';
-                    this.running = false;
-                    this.currentCheck = scan.status === 'completed' ? 'Complete' : 'Failed';
-                    this.counts = {
-                      critical: scan.critical_count || 0, high: scan.high_count || 0,
-                      medium: scan.medium_count || 0, low: scan.low_count || 0, info: scan.info_count || 0,
-                    };
-                    if (this.feed.length === 0)
-                      this._push({ t: 'progress', text: '  (recovered from connection loss)' });
-                    this._push({ t: scan.status === 'completed' ? 'done' : 'err',
-                      text: scan.status === 'completed' ? '─── Scan complete ───' : '  ✖ Scan failed' });
-                    clearInterval(this._timerHandle);
-                  }
-                }).catch(() => {});
+            if (!s.running && s.completed) { clearInterval(s._timerHandle); return; }
+            const elapsed = Math.floor((Date.now() - s.startTime) / 1000);
+            s.elapsed = elapsed < 60 ? elapsed + 's' : Math.floor(elapsed/60) + 'm ' + (elapsed%60) + 's';
+            // Fallback poll: check DB every 3s when WS is not connected
+            if (s.scanId && !s.ws && elapsed > 0 && elapsed % 3 === 0) {
+              s._pollScanStatus();
             }
           }, 1000);
         },
 
+        _pollScanStatus() {
+          const s = this;
+          fetch('/api/scans/' + s.scanId)
+            .then(r => r.ok ? r.json() : null)
+            .then(scan => {
+              if (!scan || s.completed) return;
+              if (scan.status === 'completed' || scan.status === 'failed') {
+                s.completed = scan.status === 'completed';
+                s.running = false;
+                s.currentCheck = s.completed ? 'Complete' : 'Failed';
+                s.counts = {
+                  critical: scan.critical_count || 0, high: scan.high_count || 0,
+                  medium: scan.medium_count || 0, low: scan.low_count || 0, info: scan.info_count || 0,
+                };
+                if (s.feed.length === 0)
+                  s._push({ t: 'progress', text: '  (recovered — no live events received)' });
+                s._push({ t: s.completed ? 'done' : 'err',
+                  text: s.completed ? '─── Scan complete ───' : '  ✖ Scan failed' });
+                clearInterval(s._timerHandle);
+              }
+            }).catch(() => {});
+        },
+
         startScan(payload) {
-          if (this.ws) { this.ws.close(); this.ws = null; }
+          if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
           Object.assign(this, {
             open: true, running: true, scanId: null, currentCheck: '', done: 0, total: 0,
             feed: [], completed: false, errorMsg: '', counts: {critical:0, high:0, medium:0, low:0, info:0},
@@ -411,20 +413,42 @@
             method: 'POST', headers: {'Content-Type': 'application/json'},
             body: JSON.stringify(payload),
           })
-          .then(r => { if (!r.ok) return r.text().then(t => { throw new Error(t.slice(0,200)); }); return r.json(); })
-          .then(d => {
-            if (d.scan_id) { this.scanId = d.scan_id; this._connectWs(d.scan_id, d.ws_token || ''); }
-            else { this.errorMsg = d.detail || 'Failed to start scan'; this.running = false; }
+          .then(r => {
+            if (!r.ok) return r.json().catch(() => r.text()).then(body => {
+              const msg = (body && body.detail) ? body.detail : String(body).slice(0, 200);
+              throw new Error(msg);
+            });
+            return r.json();
           })
-          .catch(e => { this.errorMsg = String(e).replace('Error: ',''); this.running = false; });
+          .then(d => {
+            if (d.scan_id) {
+              this.scanId = d.scan_id;
+              this._connectWs(d.scan_id, d.ws_token || '');
+            } else {
+              this.errorMsg = d.detail || 'Failed to start scan';
+              this.running = false;
+            }
+          })
+          .catch(e => {
+            this.errorMsg = String(e).replace(/^Error:\s*/i, '');
+            this.running = false;
+            clearInterval(this._timerHandle);
+          });
         },
 
         _connectWs(id, token) {
           const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-          this.ws = new WebSocket(`${proto}://${location.host}/ws/scan/${id}?token=${encodeURIComponent(token)}`);
           const s = this;
-          this.ws.onmessage = e => {
-            const ev = JSON.parse(e.data);
+          try {
+            s.ws = new WebSocket(`${proto}://${location.host}/ws/scan/${id}?token=${encodeURIComponent(token)}`);
+          } catch(e) {
+            s.errorMsg = 'WebSocket unavailable';
+            s.running = false;
+            return;
+          }
+          s.ws.onmessage = e => {
+            let ev;
+            try { ev = JSON.parse(e.data); } catch { return; }
             if (ev.type === 'progress') {
               const label = ev.target ? `${ev.target} → ${ev.check}` : ev.check;
               s.currentCheck = label;
@@ -444,31 +468,32 @@
               s.done = s.total || s.done;
               s.currentCheck = 'Complete';
               s.counts = {critical: ev.critical||0, high: ev.high||0, medium: ev.medium||0, low: ev.low||0, info: ev.info||0};
-              if (s.feed.length === 0) s._push({ t: 'progress', text: '  (no progress events received)' });
+              if (s.feed.length === 0) s._push({ t: 'progress', text: '  (scan completed — no individual check events)' });
               s._push({ t: 'done', text: '─── Scan complete ───' });
               clearInterval(s._timerHandle);
             } else if (ev.type === 'error') {
               s.errorMsg = ev.message || 'Unknown error';
               s.running = false;
-              s._push({ t: 'err', text: `  ✖ Error: ${ev.message}` });
+              s._push({ t: 'err', text: `  ✖ ${ev.message}` });
               clearInterval(s._timerHandle);
             }
           };
-          this.ws.onerror = () => { s.errorMsg = 'Connection error'; s.running = false; };
-          this.ws.onclose = (ev) => {
-            if (s.running) {
-              s.running = false;
-              if (!s.completed && !s.errorMsg) {
-                s.errorMsg = 'Connection closed unexpectedly';
-                s._push({ t: 'err', text: '  ✖ Connection closed — scan may still be running in the background' });
-              }
-            }
-            clearInterval(s._timerHandle);
+          s.ws.onerror = () => {
+            // onerror is followed by onclose — let onclose handle state
+          };
+          s.ws.onclose = ev => {
+            s.ws = null;
+            if (s.completed || !s.running) return;  // clean close after completion
+            // Unexpected close — don't set errorMsg, keep timer alive for fallback polling
+            s.running = false;
+            const reason = ev.code === 4401 ? 'auth failed (token invalid)' : `code ${ev.code}`;
+            s._push({ t: 'err', text: `  ⚠ WS closed (${reason}) — polling for completion…` });
+            // Timer is still running; _pollScanStatus will fire every 3s
           };
         },
 
         closeModal() {
-          if (this.ws) { this.ws.close(); this.ws = null; }
+          if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
           clearInterval(this._timerHandle);
           this.open = false;
           this.running = false;
