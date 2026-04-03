@@ -146,7 +146,7 @@
   </main>
 
   <!-- Live Scan Progress Modal + floating pill -->
-  <div x-data="scanProgress()" x-cloak @jade-scan.window="startScan($event.detail)">
+  <div x-data="scanProgress()" x-cloak @jade-scan.window="startScan($event.detail)" @viridis-reset.window="init()">
 
     <!-- Floating pill: visible when scan is running but modal is minimized -->
     <div x-show="running && !open"
@@ -341,6 +341,28 @@
         counts: {critical:0, high:0, medium:0, low:0, info:0}, ws: null,
         startTime: null, elapsed: '0s', _timerHandle: null,
 
+        init() {
+          /* On every page load: check if there is actually a running scan.
+             If not, ensure the modal stays closed regardless of any prior JS state. */
+          fetch('/api/scans?limit=1')
+            .then(r => r.ok ? r.json() : [])
+            .then(scans => {
+              const running = Array.isArray(scans) && scans.find(s => s.status === 'running');
+              if (!running) {
+                /* No active scan — force closed and clean state */
+                this.open = false;
+                this.running = false;
+                this.completed = false;
+                this.errorMsg = '';
+                this.feed = [];
+              }
+            })
+            .catch(() => {
+              this.open = false;
+              this.running = false;
+            });
+        },
+
         _push(msg) {
           const now = new Date();
           const ts = now.toTimeString().slice(0,8);
@@ -457,6 +479,14 @@
     }
 
     window.startScan = p => window.dispatchEvent(new CustomEvent('jade-scan', {detail: p||{}}));
+
+    /* Prevent bfcache from restoring a stale open modal after back/forward navigation */
+    window.addEventListener('pageshow', function(e) {
+      if (e.persisted) {
+        /* Page was restored from bfcache — dispatch a reset so Alpine re-runs init() */
+        window.dispatchEvent(new CustomEvent('viridis-reset'));
+      }
+    });
   </script>
 
 </body>
