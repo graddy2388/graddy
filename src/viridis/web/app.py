@@ -7,7 +7,6 @@ import asyncio
 import base64
 import logging
 import os
-import re
 import secrets
 import sqlite3
 from pathlib import Path
@@ -28,64 +27,9 @@ from .db.crud import (
     get_ai_events, diff_scans,
 )
 import json as _json
-import markdown
 from .db.schema import get_db
 from . import active_scans  # shared dict in web/__init__.py
 from .validation import MAX_PAGE, validate_host_path_segment
-
-
-def _resolve_wiki_dir(config: Dict[str, Any]) -> Optional[Path]:
-    """Directory containing *.md wiki pages (docs/)."""
-    raw = os.environ.get("VIRIDIS_WIKI_PATH") or config.get("web", {}).get("wiki_path", "")
-    if raw:
-        p = Path(raw).expanduser()
-        if not p.is_absolute():
-            p = Path.cwd() / p
-        return p if p.is_dir() else None
-    # Docker / deployment: same root as config (NETWORK_BOT_ROOT=/app → /app/docs)
-    bot_root = os.environ.get("NETWORK_BOT_ROOT", "").strip()
-    if bot_root:
-        candidate = Path(bot_root) / "docs"
-        if candidate.is_dir():
-            return candidate
-    # Dev: repo layout (…/src/viridis/web → project root)
-    pkg_root = Path(__file__).resolve().parent.parent.parent.parent
-    candidate = pkg_root / "docs"
-    if candidate.is_dir():
-        return candidate
-    cwd_docs = Path.cwd() / "docs"
-    return cwd_docs if cwd_docs.is_dir() else None
-
-
-def _first_markdown_title(text: str) -> str:
-    for line in text.splitlines():
-        s = line.strip()
-        if s.startswith("# "):
-            return s[2:].strip()
-    return ""
-
-
-def _list_wiki_pages(wiki_dir: Path) -> list[Dict[str, str]]:
-    pages: list[Dict[str, str]] = []
-    for path in sorted(wiki_dir.glob("*.md")):
-        body = path.read_text(encoding="utf-8", errors="replace")
-        title = _first_markdown_title(body) or path.stem.replace("-", " ").title()
-        pages.append({"slug": path.stem, "title": title, "filename": path.name})
-    return pages
-
-
-def _safe_wiki_md_path(wiki_dir: Path, slug: str) -> Optional[Path]:
-    if not slug or "/" in slug or "\\" in slug or ".." in slug:
-        return None
-    if not re.fullmatch(r"[A-Za-z0-9._-]+", slug):
-        return None
-    root = wiki_dir.resolve()
-    candidate = (wiki_dir / f"{slug}.md").resolve()
-    try:
-        candidate.relative_to(root)
-    except ValueError:
-        return None
-    return candidate if candidate.is_file() else None
 
 
 def _make_db_dep(db_path: str):
@@ -200,6 +144,10 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     # Jinja2 templates
     templates_dir = Path(__file__).parent / "templates"
     templates = Jinja2Templates(directory=str(templates_dir))
+    _wiki_url = os.environ.get("VIRIDIS_EXTERNAL_WIKI_URL") or config.get("web", {}).get(
+        "external_wiki_url", "https://github.com/graddy2388/graddy/wiki"
+    )
+    templates.env.globals["external_wiki_url"] = _wiki_url
 
     # DB dependency
     get_db_dep = _make_db_dep(db_path)
@@ -607,40 +555,6 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         return _tr(templates, request, "reports.html", {
             "active_page": "reports",
             "scans": completed,
-        })
-
-    @app.get("/wiki", response_class=HTMLResponse)
-    async def wiki_index(request: Request):
-        wiki_dir = _resolve_wiki_dir(config)
-        pages = _list_wiki_pages(wiki_dir) if wiki_dir else []
-        return _tr(templates, request, "wiki.html", {
-            "active_page": "wiki",
-            "wiki_pages": pages,
-            "wiki_missing": wiki_dir is None,
-        })
-
-    @app.get("/wiki/{slug}", response_class=HTMLResponse)
-    async def wiki_page(request: Request, slug: str):
-        wiki_dir = _resolve_wiki_dir(config)
-        if wiki_dir is None:
-            return HTMLResponse("Wiki content directory not found.", status_code=404)
-        path = _safe_wiki_md_path(wiki_dir, slug)
-        if path is None:
-            return HTMLResponse("Page not found", status_code=404)
-        raw = path.read_text(encoding="utf-8", errors="replace")
-        title = _first_markdown_title(raw) or slug.replace("-", " ").title()
-        content_html = markdown.markdown(
-            raw,
-            extensions=["extra", "sane_lists", "toc"],
-            extension_configs={
-                "toc": {"permalink": "", "toc_depth": 3},
-            },
-        )
-        return _tr(templates, request, "wiki_page.html", {
-            "active_page": "wiki",
-            "wiki_title": title,
-            "wiki_slug": slug,
-            "content_html": content_html,
         })
 
     @app.get("/scope", response_class=HTMLResponse)
