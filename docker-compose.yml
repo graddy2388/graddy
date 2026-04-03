@@ -1,6 +1,21 @@
 services:
+
+  # One-shot init: fixes volume ownership before the app starts.
+  # Docker named volumes mount as root:root on first creation, which prevents
+  # the non-root netbot user (uid 1001) from writing the SQLite database.
+  init-perms:
+    image: busybox
+    volumes:
+      - netbot-data:/app/data
+      - netbot-logs:/app/logs
+    command: ["sh", "-c", "chown -R 1001:1001 /app/data /app/logs"]
+    restart: "no"
+
   network-bot:
     image: ghcr.io/graddy2388/graddy:latest
+    depends_on:
+      init-perms:
+        condition: service_completed_successfully
     ports:
       - "8080:8080"
     volumes:
@@ -13,7 +28,7 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 15s
 
 volumes:
   netbot-data:
