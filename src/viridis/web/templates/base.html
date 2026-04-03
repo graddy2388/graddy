@@ -234,19 +234,19 @@
           </div>
           <div class="bg-orange-950 border border-orange-900 rounded-lg p-2">
             <div class="text-orange-400 font-bold text-lg" x-text="counts.high"></div>
-            <div class="text-xs text-orange-700">High</div>
+            <div class="text-xs text-orange-400">High</div>
           </div>
           <div class="bg-yellow-950 border border-yellow-900 rounded-lg p-2">
             <div class="text-yellow-400 font-bold text-lg" x-text="counts.medium"></div>
-            <div class="text-xs text-yellow-800">Medium</div>
+            <div class="text-xs text-yellow-400">Medium</div>
           </div>
           <div class="bg-emerald-950 border border-emerald-900 rounded-lg p-2">
             <div class="text-emerald-400 font-bold text-lg" x-text="counts.low"></div>
-            <div class="text-xs text-emerald-800">Low</div>
+            <div class="text-xs text-emerald-400">Low</div>
           </div>
           <div class="bg-blue-950 border border-blue-900 rounded-lg p-2">
             <div class="text-blue-400 font-bold text-lg" x-text="counts.info"></div>
-            <div class="text-xs text-blue-800">Info</div>
+            <div class="text-xs text-blue-400">Info</div>
           </div>
         </div>
 
@@ -402,6 +402,7 @@
               s.done = s.total || s.done;
               s.currentCheck = 'Complete';
               s.counts = {critical: ev.critical||0, high: ev.high||0, medium: ev.medium||0, low: ev.low||0, info: ev.info||0};
+              if (s.feed.length === 0) s._push({ t: 'progress', text: '  (no progress events received)' });
               s._push({ t: 'done', text: '─── Scan complete ───' });
               clearInterval(s._timerHandle);
             } else if (ev.type === 'error') {
@@ -412,6 +413,16 @@
             }
           };
           this.ws.onerror = () => { s.errorMsg = 'Connection error'; s.running = false; };
+          this.ws.onclose = (ev) => {
+            if (s.running) {
+              s.running = false;
+              if (!s.completed && !s.errorMsg) {
+                s.errorMsg = 'Connection closed unexpectedly';
+                s._push({ t: 'err', text: '  ✖ Connection closed — scan may still be running in the background' });
+              }
+            }
+            clearInterval(s._timerHandle);
+          };
         },
 
         closeModal() {
