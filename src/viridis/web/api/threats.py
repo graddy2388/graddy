@@ -16,8 +16,9 @@ def make_router(get_db_dep) -> APIRouter:
     @r.get("/feed")
     def threat_feed(
         limit: int = Query(default=50, ge=1, le=200),
-        source: str = Query(default="all"),
-        cve_ids: Optional[str] = Query(default=None, description="Comma-separated CVE IDs to filter by"),
+        source: str = Query(default="all", max_length=64),
+        cve_ids: Optional[str] = Query(default=None, max_length=512,
+                                       description="Comma-separated CVE IDs to filter by"),
     ):
         """Return threat intelligence feed items. Optionally filter by source or CVE IDs."""
         return get_feed(limit=limit, source=source, cve_filter=cve_ids)

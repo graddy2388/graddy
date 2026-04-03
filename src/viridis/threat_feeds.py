@@ -20,6 +20,7 @@ import re
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -37,6 +38,10 @@ _cached_items: List[Dict] = []
 _last_refresh: float = 0.0
 _CACHE_TTL = 900  # 15 minutes
 _MAX_ITEMS = 100
+_MAX_RESPONSE_BYTES = 5 * 1024 * 1024  # 5 MB cap per feed response
+
+# Only allow http/https URLs from feed items — block javascript: data: etc.
+_SAFE_URL_RE = re.compile(r'^https?://', re.IGNORECASE)
 
 
 def get_cached_feed() -> List[Dict]:
@@ -55,7 +60,8 @@ def _set_cache(items: List[Dict]) -> None:
 
 
 def is_stale() -> bool:
-    return time.time() - _last_refresh > _CACHE_TTL
+    with _CACHE_LOCK:
+        return time.time() - _last_refresh > _CACHE_TTL
 
 
 # ---------------------------------------------------------------------------
@@ -69,10 +75,17 @@ def _fetch_url(url: str, timeout: float = 10.0) -> Optional[bytes]:
             headers={"User-Agent": "Viridis/2.0 Security Scanner"},
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read()
+            return resp.read(_MAX_RESPONSE_BYTES)
     except Exception as exc:
         logger.warning("Threat feed fetch failed for %s: %s", url, exc)
         return None
+
+
+def _safe_url(url: str) -> str:
+    """Return url only if it is a safe http/https URL, otherwise empty string."""
+    if url and _SAFE_URL_RE.match(url.strip()):
+        return url.strip()
+    return ""
 
 
 def _extract_cves(text: str) -> List[str]:
@@ -142,7 +155,7 @@ def _fetch_cisa_kev() -> List[Dict]:
             "id": f"cisa-{cve_id}",
             "title": f"[CISA KEV] {cve_id} – {vuln_name}",
             "source": "CISA KEV",
-            "url": f"https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
+            "url": "https://www.cisa.gov/known-exploited-vulnerabilities-catalog",
             "severity": "critical",  # All CISA KEV are actively exploited
             "published_at": date_added,
             "summary": f"{vendor} {product}: {description} (Remediation due: {due_date})",
@@ -182,7 +195,7 @@ def _fetch_nvd_recent() -> List[Dict]:
             "id": f"nvd-{cve_id}",
             "title": f"{cve_id} (CVSS {cvss:.1f})",
             "source": "NVD",
-            "url": f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+            "url": f"https://nvd.nist.gov/vuln/detail/{urllib.parse.quote(cve_id, safe='')}",
             "severity": _severity_from_cvss(cvss),
             "published_at": published[:10] if published else "",
             "summary": summary,
@@ -251,7 +264,7 @@ def _fetch_rss(url: str, source_name: str, max_items: int = 15) -> List[Dict]:
             "id": f"{source_name.lower().replace(' ', '-')}-{hash(title) & 0xFFFFFFFF}",
             "title": title,
             "source": source_name,
-            "url": link,
+            "url": _safe_url(link),
             "severity": severity,
             "published_at": pub[:10] if pub else "",
             "summary": summary,

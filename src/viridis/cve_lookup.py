@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import threading
 import time
 import urllib.error
@@ -26,6 +27,11 @@ logger = logging.getLogger(__name__)
 _CACHE: Dict[str, Tuple[float, List[Dict]]] = {}
 _CACHE_LOCK = threading.Lock()
 _TTL = 3600  # 1 hour
+_MAX_CACHE_ENTRIES = 512   # prevent unbounded memory growth
+_MAX_RESPONSE_BYTES = 2 * 1024 * 1024  # 2 MB per API response
+
+# CVE ID must match exactly CVE-YYYY-NNNNN (no arbitrary chars)
+_CVE_ID_RE = re.compile(r'^CVE-\d{4}-\d{4,}$')
 
 
 def _cache_get(key: str) -> Optional[List[Dict]]:
@@ -40,6 +46,11 @@ def _cache_get(key: str) -> Optional[List[Dict]]:
 
 def _cache_set(key: str, value: List[Dict]) -> None:
     with _CACHE_LOCK:
+        # Evict oldest entries when cache is full (simple FIFO eviction)
+        if len(_CACHE) >= _MAX_CACHE_ENTRIES:
+            oldest = sorted(_CACHE, key=lambda k: _CACHE[k][0])
+            for evict_key in oldest[: len(_CACHE) - _MAX_CACHE_ENTRIES + 1]:
+                del _CACHE[evict_key]
         _CACHE[key] = (time.time(), value)
 
 
@@ -60,19 +71,23 @@ def _nvd_lookup(product: str, version: str, timeout: float = 5.0) -> List[Dict]:
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Viridis/2.0 Security Scanner"})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read())
+            data = json.loads(resp.read(_MAX_RESPONSE_BYTES))
         results = []
         for item in data.get("vulnerabilities", []):
             cve = item.get("cve", {})
-            cve_id = cve.get("id", "")
-            if not cve_id:
+            cve_id = str(cve.get("id", ""))
+            # Validate CVE ID format before using it in a URL
+            if not _CVE_ID_RE.match(cve_id):
                 continue
             # CVSS score
             cvss = 0.0
             metrics = cve.get("metrics", {})
             for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
                 if key in metrics and metrics[key]:
-                    cvss = float(metrics[key][0].get("cvssData", {}).get("baseScore", 0.0))
+                    try:
+                        cvss = float(metrics[key][0].get("cvssData", {}).get("baseScore", 0.0))
+                    except (TypeError, ValueError):
+                        cvss = 0.0
                     break
             # Summary
             descs = cve.get("descriptions", [])
@@ -108,29 +123,24 @@ def _osv_lookup(product: str, version: str, timeout: float = 5.0) -> List[Dict]:
             headers={"Content-Type": "application/json", "User-Agent": "Viridis/2.0 Security Scanner"},
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            data = json.loads(resp.read())
+            data = json.loads(resp.read(_MAX_RESPONSE_BYTES))
         results = []
         for vuln in data.get("vulns", []):
-            vuln_id = vuln.get("id", "")
-            # Extract CVE aliases
+            vuln_id = str(vuln.get("id", ""))
+            # Extract CVE aliases; validate each against CVE pattern
             aliases = vuln.get("aliases", [])
-            cve_ids = [a for a in aliases if a.startswith("CVE-")]
+            cve_ids = [a for a in aliases if isinstance(a, str) and _CVE_ID_RE.match(a)]
             primary_id = cve_ids[0] if cve_ids else vuln_id
-            summary = vuln.get("summary", "")[:500]
-            # Severity from database_specific or severity field
+            if not primary_id:
+                continue
+            summary = str(vuln.get("summary", ""))[:500]
             cvss = 0.0
-            for sev in vuln.get("severity", []):
-                if sev.get("type") == "CVSS_V3":
-                    # Score string like "CVSS:3.1/AV:N/AC:L/..." — parse base score
-                    score_str = sev.get("score", "")
-                    # OSV severity score is the vector string; try to get numeric from db_specific
-                    pass
             results.append({
                 "id": primary_id,
                 "cvss": cvss,
                 "summary": summary,
                 "source": "osv",
-                "url": f"https://osv.dev/vulnerability/{vuln_id}",
+                "url": f"https://osv.dev/vulnerability/{urllib.parse.quote(vuln_id, safe='')}",
             })
         return results
     except Exception as exc:

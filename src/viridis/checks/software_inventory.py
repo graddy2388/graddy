@@ -53,15 +53,19 @@ def _parse_version(banner: str) -> Tuple[str, str]:
 
 def _grab_ssh_banner(ip: str, port: int = 22, timeout: float = 3.0) -> str:
     """Connect to SSH port and read the banner line. Non-intrusive."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.settimeout(timeout)
         s.connect((ip, port))
         banner = s.recv(256).decode("utf-8", errors="replace").strip()
-        s.close()
         return banner
     except Exception:
         return ""
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
 
 
 def _severity_for_cves(cves: List[Dict]) -> Severity:

@@ -465,10 +465,16 @@ def _persist_software_inventory(db, host: str, metadata: Dict) -> None:
     if "hosts" in metadata:
         for h in metadata["hosts"]:
             for port_str, svc in h.get("services", {}).items():
-                _store_service(h["ip"], int(port_str), svc)
+                try:
+                    _store_service(h["ip"], int(port_str), svc)
+                except (ValueError, TypeError):
+                    pass
     elif "services" in metadata:
         for port_str, svc in metadata.get("services", {}).items():
-            _store_service(host, int(port_str), svc)
+            try:
+                _store_service(host, int(port_str), svc)
+            except (ValueError, TypeError):
+                pass
 
 
 def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: Dict[int, asyncio.Queue]) -> APIRouter:
