@@ -34,7 +34,7 @@ alerting:
     smtp_port: 587
     smtp_user: "you@yourorg.com"
     smtp_password: "your-password"
-    from_addr: "network-bot@yourorg.com"
+    from_addr: "viridis@yourorg.com"
     to_addrs:
       - "security@yourorg.com"
     use_tls: true

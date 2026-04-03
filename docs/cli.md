@@ -1,9 +1,9 @@
 # CLI Reference
 
 ```
-network-bot                  Start web GUI (default)
-network-bot serve            Start web GUI (explicit)
-network-bot scan             Headless scan mode
+viridis                  Start web GUI (default)
+viridis serve            Start web GUI (explicit)
+viridis scan             Headless scan mode
 ```
 
 ---
@@ -18,7 +18,7 @@ network-bot scan             Headless scan mode
 
 ---
 
-## `network-bot serve`
+## `viridis serve`
 
 ```
 --host HOST      Bind address (default: 0.0.0.0)
@@ -30,15 +30,15 @@ network-bot scan             Headless scan mode
 ### Examples
 
 ```bash
-network-bot serve
-network-bot serve --port 9090
-network-bot serve --targets config/targets.yaml
-network-bot serve --reload
+viridis serve
+viridis serve --port 9090
+viridis serve --targets config/targets.yaml
+viridis serve --reload
 ```
 
 ---
 
-## `network-bot scan`
+## `viridis scan`
 
 ```
 --target HOST    Scan a single host
@@ -51,9 +51,9 @@ network-bot serve --reload
 ### Examples
 
 ```bash
-network-bot scan --target example.com --once
-network-bot scan --targets config/targets.yaml --once --format json
-network-bot scan --targets config/targets.yaml   # runs on schedule
+viridis scan --target example.com --once
+viridis scan --targets config/targets.yaml --once --format json
+viridis scan --targets config/targets.yaml   # runs on schedule
 ```
 
 ---

@@ -10,18 +10,18 @@ Network Bot requires **Python 3.10 or newer**. If you're using Docker you don't 
 
 ```yaml
 services:
-  network-bot:
+  viridis:
     image: ghcr.io/graddy2388/graddy:latest
     ports:
       - "8088:8080"
     volumes:
-      - netbot-data:/app/data
-      - netbot-logs:/app/logs
+      - viridis-data:/app/data
+      - viridis-logs:/app/logs
     restart: unless-stopped
 
 volumes:
-  netbot-data:
-  netbot-logs:
+  viridis-data:
+  viridis-logs:
 ```
 
 ### Start it
@@ -35,7 +35,7 @@ Open **http://your-host:8088** in your browser.
 ### Portainer paste-and-deploy
 
 1. In Portainer, go to **Stacks** → **Add stack**.
-2. Give the stack a name (e.g. `network-bot`).
+2. Give the stack a name (e.g. `viridis`).
 3. Choose **Web editor** and paste the `docker-compose.yml` content above.
 4. Click **Deploy the stack**.
 5. Navigate to `http://<your-host>:8088`.
@@ -46,7 +46,7 @@ Open **http://your-host:8088** in your browser.
 
 ```bash
 pip install .
-network-bot
+viridis
 ```
 
 The web GUI starts on **http://0.0.0.0:8080**.
@@ -59,7 +59,7 @@ The web GUI starts on **http://0.0.0.0:8080**.
 git clone https://github.com/graddy2388/graddy.git
 cd graddy
 pip install -e .
-network-bot serve --reload
+viridis serve --reload
 ```
 
 ---

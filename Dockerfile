@@ -71,7 +71,7 @@ RUN pip install --no-cache-dir \
     "Pillow>=10.0" \
     "python-crontab>=3.0"
 
-# Install the network-bot package
+# Install the viridis package
 COPY src/ src/
 COPY config/ config/
 RUN pip install --no-cache-dir --no-deps .
@@ -80,11 +80,11 @@ RUN mkdir -p data logs reports nuclei-templates
 
 # Create non-root user. The container starts as root so the entrypoint can
 # fix volume-mount ownership, then drops to this user before exec.
-RUN groupadd --gid 1001 netbot \
-    && useradd --uid 1001 --gid netbot --shell /bin/sh --create-home netbot \
-    && chown -R netbot:netbot /app
+RUN groupadd --gid 1001 viridis \
+    && useradd --uid 1001 --gid viridis --shell /bin/sh --create-home viridis \
+    && chown -R viridis:viridis /app
 
-# Entrypoint: chowns volume-mounted dirs at runtime, then drops to netbot
+# Entrypoint: chowns volume-mounted dirs at runtime, then drops to viridis
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
@@ -93,4 +93,4 @@ ENV PYTHONUNBUFFERED=1
 ENV NETWORK_BOT_ROOT=/app
 
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["network-bot"]
+CMD ["viridis"]

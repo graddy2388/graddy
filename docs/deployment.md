@@ -6,18 +6,18 @@
 
 ```yaml
 services:
-  network-bot:
+  viridis:
     image: ghcr.io/graddy2388/graddy:latest
     ports:
       - "8088:8080"
     volumes:
-      - netbot-data:/app/data
-      - netbot-logs:/app/logs
+      - viridis-data:/app/data
+      - viridis-logs:/app/logs
     restart: unless-stopped
 
 volumes:
-  netbot-data:
-  netbot-logs:
+  viridis-data:
+  viridis-logs:
 ```
 
 ```bash
@@ -41,13 +41,13 @@ docker compose up -d
 
 | Volume | Contents |
 |--------|----------|
-| `netbot-data` | SQLite database (`network_bot.db`) |
-| `netbot-logs` | Log file |
+| `viridis-data` | SQLite database (`viridis.db`) |
+| `viridis-logs` | Log file |
 
 ### Backup
 
 ```bash
-docker compose cp network-bot:/app/data/network_bot.db ./backup-$(date +%Y%m%d).db
+docker compose cp viridis:/app/data/viridis.db ./backup-$(date +%Y%m%d).db
 ```
 
 ---

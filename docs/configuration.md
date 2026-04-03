@@ -9,7 +9,7 @@ Network Bot ships with sensible defaults in `config/default.yaml`. You only need
 On startup the bot loads `config/default.yaml`. If you supply `--config myconfig.yaml`, your file is merged on top of the defaults.
 
 ```bash
-network-bot --config /etc/network-bot/myconfig.yaml
+viridis --config /etc/viridis/myconfig.yaml
 ```
 
 ---
@@ -33,7 +33,7 @@ ssl:
 http:
   timeout: 10
   follow_redirects: true
-  user_agent: "NetworkBot/1.0 Security Scanner"
+  user_agent: "Viridis/1.0 Security Scanner"
 
 dns:
   check_spf: true
@@ -46,7 +46,7 @@ reporting:
 
 logging:
   level: "INFO"
-  file: "logs/network_bot.log"
+  file: "logs/viridis.log"
 
 alerting:
   enabled: false
@@ -76,7 +76,7 @@ cipher:
   timeout: 5
 
 web:
-  db_path: "data/network_bot.db"
+  db_path: "data/viridis.db"
   host: "0.0.0.0"
   port: 8080
   secret_key: "change-me-in-production"

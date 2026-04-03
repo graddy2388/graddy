@@ -2,16 +2,16 @@ services:
 
   # One-shot init: fixes volume ownership before the app starts.
   # Docker named volumes mount as root:root on first creation, which prevents
-  # the non-root netbot user (uid 1001) from writing the SQLite database.
+  # the non-root viridis user (uid 1001) from writing the SQLite database.
   init-perms:
     image: busybox
     volumes:
-      - netbot-data:/app/data
-      - netbot-logs:/app/logs
+      - viridis-data:/app/data
+      - viridis-logs:/app/logs
     command: ["sh", "-c", "chown -R 1001:1001 /app/data /app/logs"]
     restart: "no"
 
-  network-bot:
+  viridis:
     image: ghcr.io/graddy2388/graddy:latest
     depends_on:
       init-perms:
@@ -19,8 +19,8 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - netbot-data:/app/data      # SQLite database and scan history
-      - netbot-logs:/app/logs      # Log files
+      - viridis-data:/app/data      # SQLite database and scan history
+      - viridis-logs:/app/logs      # Log files
       - ./config:/app/config       # Your targets.yaml and config overrides
     restart: unless-stopped
     healthcheck:
@@ -31,5 +31,5 @@ services:
       start_period: 15s
 
 volumes:
-  netbot-data:
-  netbot-logs:
+  viridis-data:
+  viridis-logs:

@@ -1,0 +1,383 @@
+{% extends "base.html" %}
+{% block title %}{{ host.ip_address }} – Viridis{% endblock %}
+
+{% block content %}
+<div class="p-6 space-y-6">
+
+  <!-- Header -->
+  <div class="flex items-center space-x-3">
+    <a href="/hosts" class="p-1.5 text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded-lg transition-colors">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
+      </svg>
+    </a>
+    <div class="flex-1">
+      <h1 class="text-xl font-bold text-white font-mono">{{ host.ip_address }}</h1>
+      {% if host.hostname %}
+      <p class="text-gray-500 text-sm">{{ host.hostname }}</p>
+      {% endif %}
+    </div>
+    {% if host.is_alive %}
+    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-900 text-emerald-400">
+      <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full mr-1.5 animate-pulse"></span>
+      Alive
+    </span>
+    {% endif %}
+    <button onclick="window.startScan({ adhoc_host: '{{ host.ip_address }}' })"
+            class="flex items-center space-x-2 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">
+      <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <span>Rescan</span>
+    </button>
+  </div>
+
+  <!-- Host meta cards -->
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <p class="text-xs text-gray-500 uppercase font-medium tracking-wider">OS</p>
+      <p class="text-sm font-semibold text-white mt-1">{{ (host.os_guess or 'Unknown')[:30] }}</p>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <p class="text-xs text-gray-500 uppercase font-medium tracking-wider">MAC</p>
+      <p class="text-sm font-mono text-white mt-1">{{ host.mac_address or '—' }}</p>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <p class="text-xs text-gray-500 uppercase font-medium tracking-wider">Open Ports</p>
+      {% set ports = host.open_ports if host.open_ports is iterable and host.open_ports is not string else [] %}
+      <p class="text-2xl font-bold text-white mt-1">{{ ports|length }}</p>
+    </div>
+    <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+      <p class="text-xs text-gray-500 uppercase font-medium tracking-wider">Last Seen</p>
+      <p class="text-sm text-white mt-1">{{ (host.last_seen or '')[:10] or '—' }}</p>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div x-data="{
+    tab: 'findings',
+    expandedFinding: null,
+    software: null,
+    cves: null,
+    loadSoftware() {
+      if (this.software !== null) return;
+      fetch('/api/hosts/{{ host.ip_address }}/software')
+        .then(r => r.json()).then(d => { this.software = d; });
+    },
+    loadCves() {
+      if (this.cves !== null) return;
+      fetch('/api/hosts/{{ host.ip_address }}/software')
+        .then(r => r.json()).then(d => {
+          const cveMap = {};
+          d.forEach(sw => {
+            (sw.cve_summary || []).forEach(c => {
+              if (!cveMap[c.id]) cveMap[c.id] = { ...c, products: [] };
+              cveMap[c.id].products.push(sw.name + (sw.version ? ' ' + sw.version : ''));
+            });
+          });
+          this.cves = Object.values(cveMap).sort((a,b) => (b.cvss||0) - (a.cvss||0));
+        });
+    }
+  }">
+    <div class="border-b border-gray-800 flex space-x-1">
+      {% for t, label in [('findings', 'Vulnerabilities'), ('services', 'Ports & Services'), ('software', 'Software'), ('cves', 'CVEs'), ('identities', 'Identities')] %}
+      <button @click="tab = '{{ t }}'; {% if t == 'software' %}loadSoftware(){% elif t == 'cves' %}loadCves(){% endif %}"
+              :class="tab === '{{ t }}' ? 'border-b-2 border-emerald-500 text-emerald-400' : 'text-gray-500 hover:text-gray-300'"
+              class="pb-3 px-3 text-sm font-medium transition-colors">
+        {{ label }}
+      </button>
+      {% endfor %}
+    </div>
+
+    <!-- Vulnerabilities Tab -->
+    <div x-show="tab === 'findings'" class="mt-4">
+      {% if findings %}
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+        <table class="min-w-full">
+          <thead>
+            <tr class="border-b border-gray-800">
+              <th class="px-4 py-3 w-4"></th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Severity</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Finding</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommendation</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Scan</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in findings %}
+            {% set idx = loop.index0 %}
+            {% set sev_cls = {
+              'critical': 'bg-red-950 text-red-400',
+              'high':     'bg-orange-950 text-orange-400',
+              'medium':   'bg-yellow-950 text-yellow-400',
+              'low':      'bg-emerald-950 text-emerald-400',
+              'info':     'bg-gray-800 text-gray-400',
+            }.get(f.severity, 'bg-gray-800 text-gray-500') %}
+            <tr class="border-b border-gray-800 hover:bg-gray-800/60 transition-colors cursor-pointer"
+                @click="expandedFinding = expandedFinding === {{ idx }} ? null : {{ idx }}">
+              <td class="pl-4 pr-2 py-3 text-gray-600">
+                <svg class="w-3.5 h-3.5 transition-transform duration-150"
+                     :class="expandedFinding === {{ idx }} ? 'rotate-90 text-emerald-400' : ''"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/>
+                </svg>
+              </td>
+              <td class="px-4 py-3">
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium uppercase {{ sev_cls }}">
+                  {{ f.severity }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm text-white font-medium">{{ f.title }}</td>
+              <td class="px-4 py-3">
+                <span class="text-xs font-mono bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">{{ f.check }}</span>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-400 max-w-xs truncate">{{ (f.recommendation or '—')[:80] }}{% if f.recommendation and f.recommendation|length > 80 %}…{% endif %}</td>
+              <td class="px-4 py-3">
+                <a href="/scans/{{ f.scan_id }}" class="text-xs text-emerald-500 hover:text-emerald-400" @click.stop>#{{ f.scan_id }}</a>
+              </td>
+            </tr>
+            <!-- Detail row -->
+            <tr class="border-b border-gray-800 bg-gray-900/80"
+                x-show="expandedFinding === {{ idx }}" x-cloak>
+              <td colspan="6" class="px-6 py-5">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                  {% if f.description %}
+                  <div class="space-y-2">
+                    <p class="text-xs font-bold text-gray-400 uppercase tracking-wider">Description</p>
+                    <p class="text-sm font-medium text-gray-100 leading-relaxed">{{ f.description }}</p>
+                  </div>
+                  {% endif %}
+                  {% if f.recommendation %}
+                  <div class="space-y-2">
+                    <p class="text-xs font-bold text-emerald-500 uppercase tracking-wider">Recommendation</p>
+                    <p class="text-sm font-medium text-gray-100 leading-relaxed">{{ f.recommendation }}</p>
+                  </div>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-10 text-center text-gray-600 text-sm">
+        No findings recorded for this host yet.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Ports & Services Tab -->
+    <div x-show="tab === 'services'" class="mt-4">
+      {% if services %}
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+        <table class="min-w-full">
+          <thead>
+            <tr class="border-b border-gray-800">
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Port</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Protocol</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Version</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Banner</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Updated</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-800">
+            {% for s in services %}
+            <tr class="hover:bg-gray-800 transition-colors">
+              <td class="px-4 py-3 font-mono text-sm font-medium text-white">{{ s.port }}</td>
+              <td class="px-4 py-3 text-xs text-gray-500 uppercase">{{ s.protocol }}</td>
+              <td class="px-4 py-3 text-sm text-gray-300">{{ s.service_name or '—' }}</td>
+              <td class="px-4 py-3 text-sm text-gray-400 font-mono">{{ s.service_version or '—' }}</td>
+              <td class="px-4 py-3 text-xs text-gray-500 font-mono max-w-xs truncate">{{ s.banner or '—' }}</td>
+              <td class="px-4 py-3 text-xs text-gray-500">{{ (s.last_updated or '')[:16].replace('T',' ') }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-10 text-center text-gray-600 text-sm">
+        No service data available. Run an nmap scan against this host.
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Software Inventory Tab -->
+    <div x-show="tab === 'software'" class="mt-4" x-cloak>
+      <template x-if="software === null">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-10 text-center text-gray-500 text-sm">
+          <div class="inline-block w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+          <p>Loading software inventory…</p>
+        </div>
+      </template>
+      <template x-if="software !== null && software.length === 0">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-10 text-center text-gray-600 text-sm">
+          <p>No software fingerprints collected yet.</p>
+          <p class="text-xs mt-1">Run an nmap scan with -sV to collect service version data.</p>
+        </div>
+      </template>
+      <template x-if="software !== null && software.length > 0">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+          <table class="min-w-full">
+            <thead>
+              <tr class="border-b border-gray-800">
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Software</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Version</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Port</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CVEs</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Last Seen</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800">
+              <template x-for="sw in software" :key="sw.id">
+                <tr class="hover:bg-gray-800/60 transition-colors">
+                  <td class="px-4 py-3 text-sm font-medium text-white" x-text="sw.name"></td>
+                  <td class="px-4 py-3 text-sm font-mono text-gray-400" x-text="sw.version || '—'"></td>
+                  <td class="px-4 py-3 text-sm font-mono text-gray-500" x-text="sw.port > 0 ? sw.port : '—'"></td>
+                  <td class="px-4 py-3">
+                    <span class="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded font-mono" x-text="sw.source"></span>
+                  </td>
+                  <td class="px-4 py-3">
+                    <template x-if="!sw.cve_ids || sw.cve_ids.length === 0">
+                      <span class="text-xs text-gray-600">—</span>
+                    </template>
+                    <template x-if="sw.cve_ids && sw.cve_ids.length > 0">
+                      <div class="flex flex-wrap gap-1">
+                        <template x-for="cve in sw.cve_ids.slice(0,3)" :key="cve">
+                          <a :href="'https://nvd.nist.gov/vuln/detail/' + cve" target="_blank" rel="noopener noreferrer"
+                             class="text-xs px-1.5 py-0.5 rounded font-mono text-red-400 bg-red-950/60 hover:bg-red-950 transition-colors"
+                             x-text="cve"></a>
+                        </template>
+                        <template x-if="sw.cve_ids.length > 3">
+                          <span class="text-xs text-gray-500" x-text="'+' + (sw.cve_ids.length - 3) + ' more'"></span>
+                        </template>
+                      </div>
+                    </template>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-gray-500" x-text="(sw.last_seen || '').slice(0,10)"></td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
+    </div>
+
+    <!-- CVEs Tab -->
+    <div x-show="tab === 'cves'" class="mt-4" x-cloak>
+      <template x-if="cves === null">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-10 text-center text-gray-500 text-sm">
+          <div class="inline-block w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+          <p>Loading CVE data…</p>
+        </div>
+      </template>
+      <template x-if="cves !== null && cves.length === 0">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl p-10 text-center text-gray-600 text-sm">
+          <p>No CVEs found for software on this host.</p>
+          <p class="text-xs mt-1">CVE data is populated automatically after nmap scans.</p>
+        </div>
+      </template>
+      <template x-if="cves !== null && cves.length > 0">
+        <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+          <table class="min-w-full">
+            <thead>
+              <tr class="border-b border-gray-800">
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CVE ID</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CVSS</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Affected Software</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Summary</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-800">
+              <template x-for="cve in cves" :key="cve.id">
+                <tr class="hover:bg-gray-800/60 transition-colors">
+                  <td class="px-4 py-3">
+                    <a :href="cve.url || ('https://nvd.nist.gov/vuln/detail/' + cve.id)"
+                       target="_blank" rel="noopener noreferrer"
+                       class="text-sm font-mono font-medium text-red-400 hover:text-red-300"
+                       x-text="cve.id"></a>
+                  </td>
+                  <td class="px-4 py-3">
+                    <span class="text-sm font-bold"
+                          :class="cve.cvss >= 9 ? 'text-red-400' : cve.cvss >= 7 ? 'text-orange-400' : cve.cvss >= 4 ? 'text-yellow-400' : 'text-gray-400'"
+                          x-text="cve.cvss ? cve.cvss.toFixed(1) : '—'"></span>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-gray-400">
+                    <template x-for="p in (cve.products || []).slice(0,2)" :key="p">
+                      <span class="bg-gray-800 px-1.5 py-0.5 rounded mr-1" x-text="p"></span>
+                    </template>
+                  </td>
+                  <td class="px-4 py-3 text-xs text-gray-400 max-w-sm" x-text="(cve.summary || '—').slice(0,200) + (cve.summary && cve.summary.length > 200 ? '…' : '')"></td>
+                  <td class="px-4 py-3">
+                    <span class="text-xs bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded" x-text="(cve.source || 'nvd').toUpperCase()"></span>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </template>
+    </div>
+
+    <!-- Identities Tab -->
+    <div x-show="tab === 'identities'" class="mt-4">
+      {% if identities %}
+      <div class="bg-gray-900 border border-gray-800 rounded-xl overflow-x-auto">
+        <table class="min-w-full">
+          <thead>
+            <tr class="border-b border-gray-800">
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Username</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Domain</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Groups</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Admin</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-800">
+            {% for id in identities %}
+            <tr class="hover:bg-gray-800 transition-colors {% if id.is_admin %}bg-red-950/20{% endif %}">
+              <td class="px-4 py-3">
+                <span class="text-xs bg-indigo-950 text-indigo-400 px-1.5 py-0.5 rounded font-medium">{{ id.identity_type }}</span>
+              </td>
+              <td class="px-4 py-3 text-sm font-mono font-medium text-white">{{ id.username or '—' }}</td>
+              <td class="px-4 py-3 text-sm text-gray-400">{{ id.domain or '—' }}</td>
+              <td class="px-4 py-3 text-sm text-gray-300">{{ id.full_name or '—' }}</td>
+              <td class="px-4 py-3 text-xs text-gray-500">
+                {% set grps = id.groups if id.groups is sequence and id.groups is not string else [] %}
+                {% for g in grps[:3] %}
+                  <span class="bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded mr-1">{{ g }}</span>
+                {% endfor %}
+                {% if grps|length > 3 %}+{{ grps|length - 3 }} more{% endif %}
+              </td>
+              <td class="px-4 py-3">
+                {% if id.is_admin %}
+                  <span class="text-xs bg-red-950 text-red-400 px-1.5 py-0.5 rounded font-medium">YES</span>
+                {% else %}
+                  <span class="text-gray-700 text-xs">—</span>
+                {% endif %}
+              </td>
+              <td class="px-4 py-3 text-xs text-gray-500">{{ id.source or '—' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-10 text-center text-gray-600 text-sm">
+        <p>No identity data available.</p>
+        <p class="text-xs mt-1">Identity data is populated via SMB/LDAP enumeration checks.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

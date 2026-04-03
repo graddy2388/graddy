@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "network-bot"
+name = "viridis"
 version = "2.0.0"
 description = "Jade – Comprehensive penetration testing & red team platform with web GUI"
 requires-python = ">=3.10"
@@ -29,10 +29,10 @@ dependencies = [
 ]
 
 [project.scripts]
-network-bot = "network_bot.main:main"
+viridis = "viridis.main:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-network_bot = ["web/templates/*.html"]
+viridis = ["web/templates/*.html"]
