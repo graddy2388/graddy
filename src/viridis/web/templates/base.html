@@ -182,8 +182,8 @@
             <span x-show="scanId" class="text-xs text-gray-600 font-mono" x-text="'#' + scanId"></span>
           </div>
           <!-- X = minimize while running, close when done -->
-          <button @click="running ? (open = false) : closeModal()" class="text-gray-500 hover:text-gray-300" :title="running ? 'Minimize' : 'Close'">
-            <svg x-show="running" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <button @click="(running && !completed) ? (open = false) : closeModal()" class="text-gray-500 hover:text-gray-300" :title="(running && !completed) ? 'Minimize' : 'Close'">
+            <svg x-show="running && !completed" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18 12H6"/>
             </svg>
             <svg x-show="!running" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -222,7 +222,7 @@
                 'text-gray-400':    !msg.t,
               }"><span class="text-gray-600 select-none" x-text="msg.ts + ' '"></span><span x-text="msg.text"></span></div>
             </template>
-            <div x-show="feed.length===0" class="text-gray-600 italic">Waiting for first check…</div>
+            <div x-show="feed.length===0 && !completed && !errorMsg" class="text-gray-600 italic">Waiting for first check…</div>
           </div>
         </div>
 
@@ -252,7 +252,7 @@
 
         <!-- Footer -->
         <div class="px-5 py-3 border-t border-gray-700 flex justify-between items-center">
-          <span x-show="running && !errorMsg" class="text-xs text-gray-500 flex items-center gap-2">
+          <span x-show="running && !errorMsg && !completed" class="text-xs text-gray-500 flex items-center gap-2">
             <span>Elapsed: <span class="font-mono text-gray-400" x-text="elapsed"></span></span>
             <span class="text-gray-600">·</span>
             <span>click − to minimize</span>
@@ -264,9 +264,9 @@
                class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">
               View Results
             </a>
-            <button @click="running ? (open = false) : closeModal()"
+            <button @click="(running && !completed) ? (open = false) : closeModal()"
                     class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors"
-                    x-text="running ? 'Minimize' : 'Close'">
+                    x-text="(running && !completed) ? 'Minimize' : 'Close'">
             </button>
           </div>
         </div>
@@ -354,6 +354,28 @@
             if (!this.running) { clearInterval(this._timerHandle); return; }
             const s = Math.floor((Date.now() - this.startTime) / 1000);
             this.elapsed = s < 60 ? s + 's' : Math.floor(s/60) + 'm ' + (s%60) + 's';
+            /* Fallback poll: if WS missed the complete event, check DB every 10s */
+            if (this.scanId && s > 0 && s % 10 === 0) {
+              fetch('/api/scans/' + this.scanId)
+                .then(r => r.ok ? r.json() : null)
+                .then(scan => {
+                  if (!scan || !this.running) return;
+                  if (scan.status === 'completed' || scan.status === 'failed') {
+                    this.completed = scan.status === 'completed';
+                    this.running = false;
+                    this.currentCheck = scan.status === 'completed' ? 'Complete' : 'Failed';
+                    this.counts = {
+                      critical: scan.critical_count || 0, high: scan.high_count || 0,
+                      medium: scan.medium_count || 0, low: scan.low_count || 0, info: scan.info_count || 0,
+                    };
+                    if (this.feed.length === 0)
+                      this._push({ t: 'progress', text: '  (recovered from connection loss)' });
+                    this._push({ t: scan.status === 'completed' ? 'done' : 'err',
+                      text: scan.status === 'completed' ? '─── Scan complete ───' : '  ✖ Scan failed' });
+                    clearInterval(this._timerHandle);
+                  }
+                }).catch(() => {});
+            }
           }, 1000);
         },
 
