@@ -105,6 +105,10 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-XSS-Protection"] = "1; mode=block"
+        # Prevent bfcache from restoring stale Alpine JS state (e.g. open scan modal)
+        ct = response.headers.get("content-type", "")
+        if "text/html" in ct:
+            response.headers["Cache-Control"] = "no-store, must-revalidate"
         # CSP: allow same-origin + known CDNs used for Tailwind/Alpine/D3
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; "
