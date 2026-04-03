@@ -342,25 +342,23 @@
         startTime: null, elapsed: '0s', _timerHandle: null,
 
         init() {
-          /* On every page load: check if there is actually a running scan.
-             If not, ensure the modal stays closed regardless of any prior JS state. */
-          fetch('/api/scans?limit=1')
-            .then(r => r.ok ? r.json() : [])
-            .then(scans => {
-              const running = Array.isArray(scans) && scans.find(s => s.status === 'running');
-              if (!running) {
-                /* No active scan — force closed and clean state */
-                this.open = false;
-                this.running = false;
-                this.completed = false;
-                this.errorMsg = '';
-                this.feed = [];
-              }
-            })
-            .catch(() => {
-              this.open = false;
-              this.running = false;
-            });
+          /* On every page load: always force the modal closed and reset all state.
+             The modal should ONLY open when the user explicitly triggers a scan via
+             startScan(). A running scan in the DB at startup means it was orphaned
+             (the backend startup cleanup will have already marked it failed).
+             We never auto-reopen the modal on page load. */
+          this.open = false;
+          this.running = false;
+          this.completed = false;
+          this.errorMsg = '';
+          this.feed = [];
+          this.scanId = null;
+          this.currentCheck = '';
+          this.done = 0;
+          this.total = 0;
+          this.counts = {critical:0, high:0, medium:0, low:0, info:0};
+          if (this.ws) { try { this.ws.close(); } catch(e) {} this.ws = null; }
+          clearInterval(this._timerHandle);
         },
 
         _push(msg) {

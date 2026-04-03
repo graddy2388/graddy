@@ -156,6 +156,23 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     from .db.schema import init_db
     init_db(db_path)
 
+    # ── Orphan cleanup: any scan still 'running' at startup is unreachable ─
+    # The active_scans dict is empty on a fresh start, so these scans will
+    # never receive a complete/error event. Mark them failed immediately so
+    # the UI does not show a permanently stuck modal.
+    try:
+        from .db.schema import get_db as _get_db_direct
+        from .db.crud import fail_scan as _fail_scan
+        with _get_db_direct(db_path) as _db:
+            _orphans = _db.execute(
+                "SELECT id FROM scans WHERE status = 'running'"
+            ).fetchall()
+            for _row in _orphans:
+                _fail_scan(_db, _row["id"])
+                _log.info("Marked orphaned scan #%s as failed on startup", _row["id"])
+    except Exception as _exc:
+        _log.warning("Orphan scan cleanup failed: %s", _exc)
+
     scheduler = None
     try:
         from .scheduler_service import get_scheduler, reload_all_schedules
