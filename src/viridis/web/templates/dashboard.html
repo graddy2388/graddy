@@ -348,7 +348,7 @@
                 <p class="text-sm text-white group-hover:text-emerald-400 transition-colors line-clamp-1" x-text="item.title"></p>
                 <div class="flex items-center gap-2 mt-0.5">
                   <span class="text-xs text-gray-500 font-medium" x-text="item.source"></span>
-                  <span class="text-gray-700 text-xs">·</span>
+                  <span class="text-gray-600 text-xs">·</span>
                   <span class="text-xs text-gray-600" x-text="item.published_at || ''"></span>
                   <template x-if="item.cve_ids && item.cve_ids.length > 0">
                     <span class="text-xs text-red-500 font-mono" x-text="item.cve_ids.slice(0,2).join(', ') + (item.cve_ids.length > 2 ? ' +' + (item.cve_ids.length-2) : '')"></span>

@@ -162,9 +162,8 @@
           <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Recommendation</th>
         </tr>
       </thead>
-      <tbody>
-        <template x-for="(f, i) in allFindings" :key="i">
-          <tbody>
+      <template x-for="(f, i) in allFindings" :key="i">
+        <tbody>
             <!-- Main row -->
             <tr class="border-b border-gray-800 hover:bg-gray-800/60 transition-colors cursor-pointer"
                 @click="toggleExpand(i)">
@@ -232,9 +231,9 @@
                 </div>
               </td>
             </tr>
-          </tbody>
-        </template>
-
+        </tbody>
+      </template>
+      <tbody>
         <!-- Pass rows -->
         <template x-for="(r, i) in filtered.filter(r => (!r.findings || r.findings.length === 0) && r.passed)" :key="'pass-' + i">
           <tr class="border-b border-gray-800 hover:bg-gray-800 opacity-50 transition-colors">

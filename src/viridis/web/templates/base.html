@@ -137,7 +137,7 @@
 
     </nav>
 
-    <div class="px-4 py-3 border-t border-gray-800 text-xs text-gray-700">Viridis &copy; 2025</div>
+    <div class="px-4 py-3 border-t border-gray-800 text-xs text-gray-600">Viridis &copy; 2025</div>
   </aside>
 
   <!-- Main content -->
@@ -222,7 +222,7 @@
                 'text-gray-400':    !msg.t,
               }"><span class="text-gray-600 select-none" x-text="msg.ts + ' '"></span><span x-text="msg.text"></span></div>
             </template>
-            <div x-show="feed.length===0" class="text-gray-700 italic">Waiting for first check…</div>
+            <div x-show="feed.length===0" class="text-gray-600 italic">Waiting for first check…</div>
           </div>
         </div>
 
@@ -230,7 +230,7 @@
         <div x-show="completed" class="px-5 pb-4 grid grid-cols-5 gap-2 text-center">
           <div class="bg-red-950 border border-red-900 rounded-lg p-2">
             <div class="text-red-400 font-bold text-lg" x-text="counts.critical"></div>
-            <div class="text-xs text-red-700">Critical</div>
+            <div class="text-xs text-red-400">Critical</div>
           </div>
           <div class="bg-orange-950 border border-orange-900 rounded-lg p-2">
             <div class="text-orange-400 font-bold text-lg" x-text="counts.high"></div>
@@ -254,7 +254,7 @@
         <div class="px-5 py-3 border-t border-gray-700 flex justify-between items-center">
           <span x-show="running && !errorMsg" class="text-xs text-gray-500 flex items-center gap-2">
             <span>Elapsed: <span class="font-mono text-gray-400" x-text="elapsed"></span></span>
-            <span class="text-gray-700">·</span>
+            <span class="text-gray-600">·</span>
             <span>click − to minimize</span>
           </span>
           <span x-show="completed" class="text-xs text-emerald-400 font-medium">Scan complete</span>

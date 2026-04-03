@@ -113,7 +113,7 @@
 
   <div class="flex items-center justify-between">
     <div>
-      <h1 class="text-2xl font-bold text-gray-900">Scan Profiles</h1>
+      <h1 class="text-2xl font-bold text-white">Scan Profiles</h1>
       <p class="text-gray-500 text-sm mt-1">Reusable scan templates with tool configs and check selection</p>
     </div>
     <button @click="openAdd()"
@@ -128,36 +128,36 @@
   <!-- Profile cards -->
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" x-show="profiles.length > 0">
     <template x-for="p in profiles" :key="p.id">
-      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 space-y-3">
+      <div class="bg-gray-900 rounded-xl border border-gray-800 p-5 space-y-3">
         <div class="flex items-start justify-between">
           <div>
-            <h3 class="font-semibold text-gray-900" x-text="p.name"></h3>
+            <h3 class="font-semibold text-white" x-text="p.name"></h3>
             <p class="text-xs text-gray-500 mt-0.5" x-text="p.description || 'No description'"></p>
           </div>
           <span class="text-xs px-2 py-0.5 rounded-full"
                 :class="{
-                  'bg-red-100 text-red-700': p.intensity === 'aggressive',
-                  'bg-yellow-100 text-yellow-700': p.intensity === 'normal',
-                  'bg-green-100 text-green-700': p.intensity === 'stealth',
+                  'bg-red-950 text-red-400': p.intensity === 'aggressive',
+                  'bg-yellow-950 text-yellow-400': p.intensity === 'normal',
+                  'bg-emerald-950 text-emerald-400': p.intensity === 'stealth',
                 }"
                 x-text="p.intensity"></span>
         </div>
         <div class="flex flex-wrap gap-1">
           <template x-for="c in (p.checks || [])" :key="c">
-            <span class="text-xs bg-indigo-50 text-indigo-700 px-1.5 py-0.5 rounded font-mono" x-text="c"></span>
+            <span class="text-xs bg-indigo-950 text-indigo-400 px-1.5 py-0.5 rounded font-mono" x-text="c"></span>
           </template>
         </div>
         <div class="text-xs text-gray-500">
           <span class="font-medium">nmap:</span>
           <span class="font-mono" x-text="p.nmap_args || 'default'"></span>
         </div>
-        <div class="flex space-x-2 pt-2 border-t border-gray-100">
+        <div class="flex space-x-2 pt-2 border-t border-gray-800">
           <button @click="openEdit(p)"
-                  class="flex-1 text-center text-xs px-3 py-1.5 border border-gray-300 text-gray-700 rounded hover:bg-gray-50">
+                  class="flex-1 text-center text-xs px-3 py-1.5 border border-gray-700 text-gray-300 rounded hover:bg-gray-800">
             Edit
           </button>
           <button @click="deleteProfile(p.id)"
-                  class="flex-1 text-center text-xs px-3 py-1.5 border border-red-200 text-red-600 rounded hover:bg-red-50">
+                  class="flex-1 text-center text-xs px-3 py-1.5 border border-red-900 text-red-400 rounded hover:bg-red-950/50">
             Delete
           </button>
         </div>
@@ -166,7 +166,7 @@
   </div>
 
   <div x-show="profiles.length === 0"
-       class="bg-white rounded-xl border border-gray-200 p-12 text-center text-gray-400 text-sm">
+       class="bg-gray-900 rounded-xl border border-gray-800 p-12 text-center text-gray-500 text-sm">
     No profiles yet. Create one to use when running scans.
   </div>
 
@@ -174,10 +174,10 @@
   <div x-show="showModal" x-cloak
        class="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50"
        x-transition>
-    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
-      <div class="px-6 py-4 border-b flex items-center justify-between sticky top-0 bg-white z-10">
-        <h3 class="text-lg font-semibold text-gray-900" x-text="editing ? 'Edit Profile' : 'New Scan Profile'"></h3>
-        <button @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+    <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-screen overflow-y-auto">
+      <div class="px-6 py-4 border-b border-gray-700 flex items-center justify-between sticky top-0 bg-gray-900 z-10">
+        <h3 class="text-lg font-semibold text-white" x-text="editing ? 'Edit Profile' : 'New Scan Profile'"></h3>
+        <button @click="showModal = false" class="text-gray-500 hover:text-gray-300">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
           </svg>
@@ -186,23 +186,23 @@
       <div class="px-6 py-4 space-y-4">
         <div class="grid grid-cols-2 gap-4">
           <div class="col-span-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Profile Name *</label>
+            <label class="block text-sm font-medium text-gray-400 mb-1">Profile Name *</label>
             <input x-model="form.name" type="text" placeholder="e.g. Full Pen Test, Quick Recon"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
           </div>
           <div class="col-span-2">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+            <label class="block text-sm font-medium text-gray-400 mb-1">Description</label>
             <input x-model="form.description" type="text"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
           </div>
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Checks</label>
+          <label class="block text-sm font-medium text-gray-400 mb-2">Checks</label>
           <div class="flex flex-wrap gap-2">
             <template x-for="c in allChecks" :key="c">
               <button @click="toggleCheck(c)"
-                      :class="form.checks.includes(c) ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                      :class="form.checks.includes(c) ? 'bg-indigo-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
                       class="px-3 py-1.5 rounded-lg text-xs font-mono transition-colors"
                       x-text="c"></button>
             </template>
@@ -210,11 +210,11 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-2">Additional Tools</label>
+          <label class="block text-sm font-medium text-gray-400 mb-2">Additional Tools</label>
           <div class="flex flex-wrap gap-2">
             <template x-for="t in allTools" :key="t">
               <button @click="toggleTool(t)"
-                      :class="form.tools.includes(t) ? 'bg-emerald-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
+                      :class="form.tools.includes(t) ? 'bg-emerald-600 text-white' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'"
                       class="px-3 py-1.5 rounded-lg text-xs font-mono transition-colors"
                       x-text="t"></button>
             </template>
@@ -222,21 +222,21 @@
         </div>
 
         <div>
-          <label class="block text-sm font-medium text-gray-700 mb-1">Nmap Arguments</label>
+          <label class="block text-sm font-medium text-gray-400 mb-1">Nmap Arguments</label>
           <input x-model="form.nmap_args" type="text" placeholder="-sV -sC --top-ports 1000 -T4"
-                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500">
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
         </div>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Ports (comma-separated)</label>
+            <label class="block text-sm font-medium text-gray-400 mb-1">Ports (comma-separated)</label>
             <input x-model="form.ports" type="text"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-emerald-500">
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Intensity</label>
+            <label class="block text-sm font-medium text-gray-400 mb-1">Intensity</label>
             <select x-model="form.intensity"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-500">
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500">
               <option value="stealth">Stealth (slow, quiet)</option>
               <option value="normal">Normal</option>
               <option value="aggressive">Aggressive (fast, noisy)</option>
@@ -244,9 +244,9 @@
           </div>
         </div>
       </div>
-      <div class="px-6 py-4 border-t flex justify-end space-x-3">
+      <div class="px-6 py-4 border-t border-gray-700 flex justify-end space-x-3">
         <button @click="showModal = false"
-                class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+                class="px-4 py-2 border border-gray-700 text-gray-300 rounded-lg text-sm hover:bg-gray-800">Cancel</button>
         <button @click="saveProfile()"
                 :disabled="!form.name"
                 class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700 disabled:opacity-50">
