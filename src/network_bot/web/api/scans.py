@@ -380,14 +380,17 @@ def run_checks_for_web(
         _put({"type": "error", "message": str(exc)})
 
 
-def _rdns_lookup(ip: str) -> str:
-    """Non-invasive reverse DNS (PTR) lookup. Returns hostname or empty string."""
-    import socket
+def _resolve_hostname(ip: str) -> str:
+    """Multi-method hostname resolution: PTR DNS, NetBIOS, mDNS."""
     try:
-        result = socket.gethostbyaddr(ip)
-        return result[0] or ""
+        from ...hostname_resolver import resolve_hostname
+        return resolve_hostname(ip)
     except Exception:
-        return ""
+        import socket
+        try:
+            return socket.gethostbyaddr(ip)[0] or ""
+        except Exception:
+            return ""
 
 
 def _persist_host_data(db, host: str, metadata: Dict) -> None:
@@ -395,7 +398,7 @@ def _persist_host_data(db, host: str, metadata: Dict) -> None:
     if "hosts" in metadata:
         # Subnet scan – multiple hosts
         for h in metadata["hosts"]:
-            hostname = h.get("hostname", "") or _rdns_lookup(h["ip"])
+            hostname = h.get("hostname", "") or _resolve_hostname(h["ip"])
             upsert_host_inventory(
                 db,
                 ip_address=h["ip"],
@@ -418,7 +421,7 @@ def _persist_host_data(db, host: str, metadata: Dict) -> None:
         # Single-host nmap scan
         os_guesses = metadata.get("os_guesses", [])
         os_guess = max(os_guesses, key=lambda x: x.get("accuracy", 0))["name"] if os_guesses else ""
-        hostname = metadata.get("hostname", "") or _rdns_lookup(host)
+        hostname = metadata.get("hostname", "") or _resolve_hostname(host)
         upsert_host_inventory(
             db,
             ip_address=host,

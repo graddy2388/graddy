@@ -107,7 +107,12 @@ def _socket_ping_sweep(cidr: str) -> List[Dict]:
             result = sock.connect_ex((ip_str, 80))
             sock.close()
             if result == 0:
-                hosts.append({"ip": ip_str, "hostname": "", "mac": ""})
+                try:
+                    from ...hostname_resolver import resolve_hostname
+                    hn = resolve_hostname(ip_str, timeout=1.0)
+                except Exception:
+                    hn = ""
+                hosts.append({"ip": ip_str, "hostname": hn, "mac": ""})
         except OSError:
             pass
 

@@ -77,6 +77,7 @@ def _parse_nmap_xml(xml_text: str) -> Dict:
     """Parse nmap XML output into a structured dict."""
     result: Dict = {
         "hosts": [],
+        "hostname": "",
         "os_guesses": [],
         "open_ports": [],
         "services": {},
@@ -98,6 +99,14 @@ def _parse_nmap_xml(xml_text: str) -> Dict:
         for addr in host_elem.findall("address"):
             if addr.get("addrtype") == "ipv4":
                 result["hosts"].append(addr.get("addr", ""))
+
+        # Hostname (PTR / user record from nmap's own DNS resolution)
+        if not result["hostname"]:
+            for hn in host_elem.findall(".//hostname"):
+                name = hn.get("name", "").strip()
+                if name:
+                    result["hostname"] = name
+                    break
 
         # OS detection
         for os_elem in host_elem.findall(".//osmatch"):
