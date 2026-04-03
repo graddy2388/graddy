@@ -69,11 +69,13 @@ RUN pip install --no-cache-dir \
     "ldap3>=2.9" \
     "reportlab>=4.0" \
     "Pillow>=10.0" \
-    "python-crontab>=3.0"
+    "python-crontab>=3.0" \
+    "markdown>=3.5"
 
 # Install the viridis package
 COPY src/ src/
 COPY config/ config/
+COPY docs/ docs/
 RUN pip install --no-cache-dir --no-deps .
 
 RUN mkdir -p data logs reports nuclei-templates
