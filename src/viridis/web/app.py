@@ -237,6 +237,14 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
 
     # ── Page routes ────────────────────────────────────────────────────────
 
+    @app.get("/api/version")
+    async def version():
+        import time
+        return {
+            "build_sha": os.environ.get("BUILD_SHA", "dev"),
+            "server_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+        }
+
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):
         with get_db(db_path) as db:
