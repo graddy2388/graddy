@@ -339,7 +339,7 @@
         scanId: null, currentCheck: '', done: 0, total: 0,
         feed: [], completed: false, errorMsg: '',
         counts: {critical:0, high:0, medium:0, low:0, info:0}, ws: null,
-        startTime: null, elapsed: '0s', _timerHandle: null,
+        startTime: null, elapsed: '0s', _timerHandle: null, _wsLastMsg: 0,
 
         init() {
           this.open = false;
@@ -371,6 +371,13 @@
             if (!s.running && s.completed) { clearInterval(s._timerHandle); return; }
             const elapsed = Math.floor((Date.now() - s.startTime) / 1000);
             s.elapsed = elapsed < 60 ? elapsed + 's' : Math.floor(elapsed/60) + 'm ' + (elapsed%60) + 's';
+            // If WS is connected but silent for >30s, assume dead — close and fall back to polling
+            if (s.ws && s._wsLastMsg > 0 && (Date.now() - s._wsLastMsg) > 30000) {
+              s._push({ t: 'err', text: '  ⚠ No response from server — switching to polling…' });
+              try { s.ws.close(); } catch(e) {}
+              s.ws = null;
+              s.running = false;
+            }
             // Fallback poll: check DB every 3s when WS is not connected
             if (s.scanId && !s.ws && elapsed > 0 && elapsed % 3 === 0) {
               s._pollScanStatus();
@@ -406,7 +413,7 @@
           Object.assign(this, {
             open: true, running: true, scanId: null, currentCheck: '', done: 0, total: 0,
             feed: [], completed: false, errorMsg: '', counts: {critical:0, high:0, medium:0, low:0, info:0},
-            startTime: Date.now(), elapsed: '0s',
+            startTime: Date.now(), elapsed: '0s', _wsLastMsg: 0,
           });
           this._startTimer();
           fetch('/api/scans', {
@@ -446,7 +453,9 @@
             s.running = false;
             return;
           }
+          s._wsLastMsg = Date.now();
           s.ws.onmessage = e => {
+            s._wsLastMsg = Date.now();
             let ev;
             try { ev = JSON.parse(e.data); } catch { return; }
             if (ev.type === 'progress') {
