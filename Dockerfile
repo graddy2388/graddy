@@ -90,7 +90,7 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 EXPOSE 8080
 ENV PYTHONUNBUFFERED=1
-ENV NETWORK_BOT_ROOT=/app
+ENV VIRIDIS_ROOT=/app
 ARG BUILD_SHA=dev
 ENV BUILD_SHA=${BUILD_SHA}
 

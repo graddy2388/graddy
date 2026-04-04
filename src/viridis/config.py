@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # Resolve config root: env var > /app (Docker) > repo root (dev)
 _PACKAGE_DIR = Path(__file__).parent
 _DEV_ROOT = _PACKAGE_DIR.parent.parent
-_REPO_ROOT = Path(os.environ.get("NETWORK_BOT_ROOT", "/app"))
+_REPO_ROOT = Path(os.environ.get("VIRIDIS_ROOT", os.environ.get("NETWORK_BOT_ROOT", "/app")))
 if not (_REPO_ROOT / "config" / "default.yaml").exists():
     _REPO_ROOT = _DEV_ROOT
 
