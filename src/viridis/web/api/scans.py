@@ -72,7 +72,8 @@ class ScanIn(BaseModel):
 
 # Default checks registry â€" new checks registered here
 _DEFAULT_CHECKS = [
-    "port_scan", "ssl", "http", "dns", "vuln", "smtp", "exposed_paths", "cipher"
+    "port_scan", "ssl", "http", "dns", "vuln", "smtp", "exposed_paths", "cipher",
+    "software_inventory",
 ]
 
 
@@ -132,6 +133,11 @@ def _load_check_registry():
     try:
         from ...checks.headers_check import HeadersCheck
         registry["headers"] = HeadersCheck
+    except ImportError:
+        pass
+    try:
+        from ...checks.software_inventory import SoftwareInventoryCheck
+        registry["software_inventory"] = SoftwareInventoryCheck
     except ImportError:
         pass
     return registry
@@ -318,6 +324,22 @@ def run_checks_for_web(
                             except Exception:
                                 pass
 
+                        # Persist software items discovered by the dedicated check
+                        if check_name == "software_inventory" and result.metadata:
+                            try:
+                                for sw in result.metadata.get("software", []):
+                                    upsert_host_software(
+                                        _db,
+                                        host_ip=host,
+                                        name=sw.get("name", ""),
+                                        version=sw.get("version", ""),
+                                        source=sw.get("source", "software_inventory"),
+                                        port=sw.get("port", 0),
+                                        cves=sw.get("cves", []),
+                                    )
+                            except Exception:
+                                pass
+
                         if check_name in ("nmap", "subnet_scan", "port_scan") and result.metadata:
                             try:
                                 open_ports = result.metadata.get("open_ports", [])
@@ -338,6 +360,17 @@ def run_checks_for_web(
                                 pass
                 except Exception:
                     pass  # don't let a DB save failure abort the scan
+
+                # Accumulate scan metadata so software_inventory can read nmap/port_scan results.
+                # port_scan produces "banners"; convert to the "services" format nmap uses.
+                if check_name in ("nmap", "subnet_scan") and result.metadata:
+                    target["scan_metadata"] = result.metadata
+                elif check_name == "port_scan" and result.metadata:
+                    banners = result.metadata.get("banners", {})
+                    target["scan_metadata"] = {
+                        "open_ports": result.metadata.get("open_ports", []),
+                        "services": {p: {"banner": b, "product": "", "version": ""} for p, b in banners.items()},
+                    }
 
                 done += 1
 

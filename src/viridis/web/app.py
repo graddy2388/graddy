@@ -69,9 +69,9 @@ class BasicAuthMiddleware(BaseHTTPMiddleware):
         self._password = password
 
     async def dispatch(self, request: Request, call_next):
-        # WebSocket handshakes come in as HTTP upgrades — skip Basic Auth
-        # for WS paths; they use per-scan token auth instead.
-        if request.url.path.startswith("/ws/"):
+        # Skip Basic Auth for WebSocket paths (use per-scan token) and
+        # for the /api/version diagnostic endpoint (needed for health checks).
+        if request.url.path.startswith("/ws/") or request.url.path == "/api/version":
             return await call_next(request)
 
         auth = request.headers.get("Authorization", "")
