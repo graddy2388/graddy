@@ -20,26 +20,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Runner environment
-        run: |
-          echo "=== OS ==="
-          uname -a
-          echo "=== User ==="
-          whoami
-          echo "=== Docker version ==="
-          docker --version
-          echo "=== Docker info ==="
-          docker info 2>&1 | head -30
-          echo "=== Workspace files ==="
-          ls -la
-          echo "=== GITHUB_TOKEN length ==="
-          echo "${{ secrets.GITHUB_TOKEN }}" | wc -c
-
       - name: Log in to GHCR
-        run: |
-          echo "Logging in as: ${{ github.actor }}"
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          echo "Login exit code: $?"
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

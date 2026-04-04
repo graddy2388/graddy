@@ -360,6 +360,8 @@ def _migrate(conn) -> None:
             cve_summary TEXT DEFAULT '[]',
             last_seen TEXT DEFAULT (datetime('now'))
         );
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_host_software_uniq
+            ON host_software(host_ip, name, source, port);
     """)
     conn.commit()
 

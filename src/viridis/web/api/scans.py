@@ -381,8 +381,7 @@ def run_checks_for_web(
             })
 
         # Update per-target risk scores
-        from datetime import datetime, timezone as _tz
-        _now = datetime.now(_tz.utc).isoformat()
+        _now = datetime.now(timezone.utc).isoformat()
         for _host, _tgt_sev in per_target_sev.items():
             _score = min(100,
                 _tgt_sev.get("critical", 0) * 40 +
