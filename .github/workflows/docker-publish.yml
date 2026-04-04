@@ -45,6 +45,7 @@ jobs:
         run: |
           echo "Starting docker build..."
           docker build \
+            --build-arg BUILD_SHA=${{ github.sha }} \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
             -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ github.sha }} \
             .

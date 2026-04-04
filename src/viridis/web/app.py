@@ -152,6 +152,8 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         "external_wiki_url", "https://github.com/graddy2388/graddy/wiki"
     )
     templates.env.globals["external_wiki_url"] = _wiki_url
+    _build_sha = os.environ.get("BUILD_SHA", "")
+    templates.env.globals["build_sha"] = _build_sha[:7] if _build_sha else "dev"
 
     # DB dependency
     get_db_dep = _make_db_dep(db_path)
