@@ -3,6 +3,7 @@ services:
   # One-shot init: fixes volume ownership before the app starts.
   # Docker named volumes mount as root:root on first creation, which prevents
   # the non-root viridis user (uid 1001) from writing the SQLite database.
+  # NOTE: "exited - code 0" in Portainer is NORMAL for this container.
   init-perms:
     image: busybox
     volumes:
@@ -12,7 +13,14 @@ services:
     restart: "no"
 
   viridis:
+    # ── Option A (default): pull pre-built image from GitHub Container Registry ──
     image: ghcr.io/graddy2388/graddy:latest
+    # ── Option B: build directly from GitHub source (bypasses CI) ──
+    # Uncomment the 4 lines below and comment out the 'image:' line above.
+    # build:
+    #   context: https://github.com/graddy2388/graddy.git#claude/network-testing-bot-E65mW
+    #   args:
+    #     BUILD_SHA: local-build
     depends_on:
       init-perms:
         condition: service_completed_successfully
@@ -21,7 +29,7 @@ services:
     volumes:
       - viridis-data:/app/data      # SQLite database and scan history
       - viridis-logs:/app/logs      # Log files
-      - ./config:/app/config       # Your targets.yaml and config overrides
+      - ./config:/app/config        # Your targets.yaml and config overrides
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
