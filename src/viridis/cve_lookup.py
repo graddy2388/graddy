@@ -34,6 +34,61 @@ _MAX_RESPONSE_BYTES = 2 * 1024 * 1024  # 2 MB per API response
 _CVE_ID_RE = re.compile(r'^CVE-\d{4}-\d{4,}$')
 
 
+def _version_tuple(v: str) -> tuple:
+    """Convert a version string to a comparable int tuple.
+    '2.4.51' -> (2, 4, 51);  '8.9p1' -> (8, 9);  '' -> ().
+    """
+    if not v:
+        return ()
+    parts = []
+    for seg in re.split(r'[.\-_]', v):
+        m = re.match(r'^(\d+)', seg)
+        if m:
+            parts.append(int(m.group(1)))
+    return tuple(parts) if parts else ()
+
+
+def _version_in_range(version: str, cpe_match: dict) -> bool:
+    """Return True if *version* falls within the affected range of one cpeMatch entry."""
+    v = _version_tuple(version)
+    if not v:
+        return True  # can't filter without a parsed version; assume affected
+    vsi = cpe_match.get("versionStartIncluding", "")
+    vse = cpe_match.get("versionStartExcluding", "")
+    vei = cpe_match.get("versionEndIncluding", "")
+    vee = cpe_match.get("versionEndExcluding", "")
+    if not any([vsi, vse, vei, vee]):
+        return True  # no bounds → exact CPE match, treat as affected
+    low_ok = True
+    if vsi:
+        low_ok = v >= _version_tuple(vsi)
+    elif vse:
+        low_ok = v > _version_tuple(vse)
+    high_ok = True
+    if vei:
+        high_ok = v <= _version_tuple(vei)
+    elif vee:
+        high_ok = v < _version_tuple(vee)
+    return low_ok and high_ok
+
+
+def _cve_affects_version(cve: dict, version: str) -> bool:
+    """Return True if the CVE's configurations indicate *version* is affected.
+    Returns True (keep the CVE) when configurations are absent — some CVEs omit this field.
+    """
+    configurations = cve.get("configurations", [])
+    if not configurations:
+        return True
+    for config in configurations:
+        for node in config.get("nodes", []):
+            for cpe_match in node.get("cpeMatch", []):
+                if not cpe_match.get("vulnerable", True):
+                    continue
+                if _version_in_range(version, cpe_match):
+                    return True
+    return False
+
+
 def _cache_get(key: str) -> Optional[List[Dict]]:
     with _CACHE_LOCK:
         entry = _CACHE.get(key)
@@ -92,6 +147,10 @@ def _nvd_lookup(product: str, version: str, timeout: float = 5.0) -> List[Dict]:
             # Summary
             descs = cve.get("descriptions", [])
             summary = next((d["value"] for d in descs if d.get("lang") == "en"), "")[:500]
+            # Filter out CVEs whose version ranges don't include the detected version
+            if version and not _cve_affects_version(cve, version):
+                logger.debug("NVD: skipping %s — version %s not in affected range", cve_id, version)
+                continue
             results.append({
                 "id": cve_id,
                 "cvss": cvss,

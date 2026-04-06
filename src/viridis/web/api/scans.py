@@ -323,6 +323,11 @@ def run_checks_for_web(
                                 _persist_software_inventory(_db, host, result.metadata)
                             except Exception:
                                 pass
+                        elif check_name == "port_scan" and result.metadata:
+                            try:
+                                _persist_host_data_port_scan(_db, host, result.metadata)
+                            except Exception:
+                                pass
 
                         # Persist software items discovered by the dedicated check
                         if check_name == "software_inventory" and result.metadata:
@@ -473,6 +478,24 @@ def _persist_host_data(db, host: str, metadata: Dict) -> None:
                 service_version=f"{svc.get('product','')} {svc.get('version','')}".strip(),
                 banner=svc.get("banner", ""),
             )
+
+
+def _persist_host_data_port_scan(db, host: str, metadata: Dict) -> None:
+    """Update host inventory with open ports discovered by the pure-Python port scan."""
+    open_ports = metadata.get("open_ports", [])
+    banners = metadata.get("banners", {})
+    hostname = _resolve_hostname(host)
+    services = {str(p): {"banner": banners.get(str(p), "")} for p in open_ports}
+    upsert_host_inventory(
+        db,
+        ip_address=host,
+        hostname=hostname,
+        open_ports=open_ports,
+        services=services,
+    )
+    for port in open_ports:
+        banner = banners.get(str(port), "")
+        upsert_host_service(db, host_ip=host, port=int(port), banner=banner)
 
 
 def _persist_software_inventory(db, host: str, metadata: Dict) -> None:

@@ -7,6 +7,7 @@ import dns.query
 import dns.zone
 import dns.exception
 import dns.rdatatype
+import dns.reversename
 
 from .base import BaseCheck, CheckResult, Finding, Severity
 
@@ -241,24 +242,46 @@ class DNSCheck(BaseCheck):
         check_spf = dns_config.get("check_spf", True)
         check_dmarc_flag = dns_config.get("check_dmarc", True)
 
-        # Skip DNS checks for IP addresses
+        # For IP addresses: run a PTR reverse lookup instead of domain checks
+        is_ip = False
         try:
             socket.inet_aton(host)
+            is_ip = True
+        except socket.error:
+            pass
+
+        if is_ip:
+            ptr_hostname = ""
+            try:
+                rev_name = dns.reversename.from_address(host)
+                _res = dns.resolver.Resolver()
+                _res.timeout = 5
+                _res.lifetime = 10
+                ptr_answers = _res.resolve(rev_name, "PTR")
+                ptr_hostname = str(ptr_answers[0]).rstrip(".")
+            except Exception:
+                pass
+
+            if ptr_hostname:
+                description = f"Reverse DNS (PTR) lookup for {host} resolved to '{ptr_hostname}'."
+            else:
+                description = (
+                    f"No PTR record found for {host}. "
+                    "A missing reverse DNS record can indicate unmanaged infrastructure "
+                    "or misconfigured DNS zones."
+                )
             return CheckResult(
                 check_name=self.name,
                 target=host,
                 passed=True,
-                findings=[
-                    Finding(
-                        title="DNS checks skipped for IP address",
-                        severity=Severity.INFO,
-                        description="DNS email security checks (SPF, DMARC) are not applicable to IP addresses.",
-                    )
-                ],
-                metadata={"skipped": True, "reason": "IP address target"},
+                findings=[Finding(
+                    title="Reverse DNS (PTR)" + (f": {ptr_hostname}" if ptr_hostname else ": no record"),
+                    severity=Severity.INFO,
+                    description=description,
+                    details={"ip": host, "ptr_hostname": ptr_hostname or None, "has_ptr": bool(ptr_hostname)},
+                )],
+                metadata={"ip": host, "ptr_hostname": ptr_hostname, "skipped_domain_checks": True},
             )
-        except socket.error:
-            pass
 
         domain = _get_domain(host)
         resolver = dns.resolver.Resolver()
