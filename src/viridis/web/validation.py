@@ -28,6 +28,7 @@ MAX_SEARCH_QUERY_LEN = 200
 MAX_IMPORT_ROWS = 2000
 MAX_TARGET_IDS_PER_SCAN = 5000
 MAX_TAG_NAMES_PER_IMPORT = 50
+MAX_PORT_LIST_SIZE = 1024
 
 VALID_CHECKS: FrozenSet[str] = frozenset({
     "port_scan", "ssl", "http", "dns", "vuln", "smtp",
@@ -101,9 +102,9 @@ def validate_checks(checks: Optional[Iterable[str]], *, allow_empty: bool = Fals
     lst = list(checks)
     if not lst and not allow_empty:
         raise ValueError("checks cannot be empty")
-    invalid = [c for c in lst if c not in VALID_CHECKS]
+    invalid = [c for c in lst if not isinstance(c, str) or c not in VALID_CHECKS]
     if invalid:
-        raise ValueError(f"unknown checks: {', '.join(invalid)}")
+        raise ValueError(f"unknown checks: {', '.join(map(str, invalid))}")
     return lst
 
 
@@ -112,9 +113,11 @@ def validate_ports(ports: Optional[Iterable[int]]) -> Optional[List[int]]:
         return None
     out: List[int] = []
     for p in ports:
-        if not isinstance(p, int) or not (0 < p <= 65535):
+        if isinstance(p, bool) or not isinstance(p, int) or not (0 < p <= 65535):
             raise ValueError(f"invalid port: {p!r}")
         out.append(p)
+    if len(out) > MAX_PORT_LIST_SIZE:
+        raise ValueError(f"too many ports: {len(out)} > {MAX_PORT_LIST_SIZE}")
     return out
 
 
