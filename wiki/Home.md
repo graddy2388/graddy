@@ -35,12 +35,12 @@ docker compose up -d
 
 | Page | What it covers |
 |------|---------------|
-| [Installation & Setup](installation.md) | Docker, pip install, development mode |
-| [Configuration](configuration.md) | All config options, environment variables |
-| [Managing Targets](targets.md) | YAML format, web GUI, CIDR subnets |
-| [Security Checks Reference](checks.md) | Every check module documented |
-| [Groups & Tags](groups-and-tags.md) | Organising targets, scanning subsets |
-| [Alerting](alerting.md) | Teams and email setup |
-| [Web GUI Guide](web-gui.md) | Page-by-page walkthrough |
-| [CLI Reference](cli.md) | All commands and flags |
-| [Deployment Guide](deployment.md) | Docker Compose, Portainer, reverse proxy, backups |
+| [Installation & Setup](Installation-and-Setup) | Docker, pip install, development mode |
+| [Configuration](Configuration) | All config options, environment variables |
+| [Managing Targets](Managing-Targets) | YAML format, web GUI, CIDR subnets |
+| [Security Checks Reference](Security-Checks-Reference) | Every check module documented |
+| [Groups & Tags](Groups-and-Tags) | Organising targets, scanning subsets |
+| [Alerting](Alerting) | Teams and email setup |
+| [Web GUI Guide](Web-GUI-Guide) | Page-by-page walkthrough |
+| [CLI Reference](CLI-Reference) | All commands and flags |
+| [Deployment Guide](Deployment-Guide) | Docker Compose, Portainer, reverse proxy, backups |
