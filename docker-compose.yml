@@ -18,7 +18,7 @@ services:
     # ── Option B: build directly from GitHub source (bypasses CI) ──
     # Uncomment the 4 lines below and comment out the 'image:' line above.
     # build:
-    #   context: https://github.com/graddy2388/graddy.git#graddy/viridis
+    #   context: https://github.com/graddy2388/graddy.git#codex/graddy/viridis
     #   args:
     #     BUILD_SHA: local-build
     depends_on:
