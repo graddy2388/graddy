@@ -1,0 +1,56 @@
+name: Sync docs to GitHub Wiki
+
+on:
+  push:
+    branches: [main, "claude/**"]
+    paths:
+      - "wiki/**"
+      - ".github/workflows/wiki-sync.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Sync wiki folder to GitHub Wiki
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          wiki_dir="/tmp/wiki-repo"
+          wiki_remote="https://x-access-token:${GH_TOKEN}@github.com/${REPO}.wiki.git"
+
+          if ! git clone "${wiki_remote}" "${wiki_dir}"; then
+            echo "Failed to clone ${REPO}.wiki.git."
+            echo "Make sure the Wiki feature is enabled in repository settings."
+            exit 1
+          fi
+
+          rsync -av --delete --exclude '.git/' wiki/ "${wiki_dir}/"
+
+          cd "${wiki_dir}"
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No wiki changes to publish."
+            exit 0
+          fi
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No staged wiki changes."
+            exit 0
+          fi
+
+          git commit -m "Sync wiki from ${REPO}@${GITHUB_SHA}"
+          git push origin master
