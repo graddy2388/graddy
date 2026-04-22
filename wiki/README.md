@@ -1,8 +1,14 @@
 # Wiki Source Files
 
-This folder now stores the project documentation in GitHub Wiki-friendly page names.
+This folder stores the project documentation in GitHub Wiki-friendly page names.
 
-## Publish to the GitHub Wiki repository
+## Automatic publishing (recommended)
+
+This repository includes `.github/workflows/wiki-sync.yml`, which publishes changes from `wiki/` to the GitHub Wiki repository (`<repo>.wiki.git`) on every push to `main` (and `claude/**`) that touches wiki files.
+
+If the **Wiki** tab is still empty, ensure the repository Wiki feature is enabled and run the workflow manually from the **Actions** tab.
+
+## Manual publishing (fallback)
 
 GitHub wikis are backed by a separate repository named `<repo>.wiki.git`.
 
