@@ -4,7 +4,6 @@ viridis.web.app – FastAPI application factory.
 from __future__ import annotations
 
 import asyncio
-import base64
 import logging
 import os
 import secrets
@@ -14,7 +13,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -50,50 +49,14 @@ def _make_db_dep(db_path: str):
 
 
 def _tr(templates: Jinja2Templates, request: Request, name: str, ctx: dict):
-    """Compatibility wrapper: tries new API (request first), falls back to old."""
+    """Compatibility wrapper: injects current_user and tries new API first."""
+    ctx = dict(ctx)
+    ctx.setdefault("current_user", getattr(request.state, "user", None))
     try:
         return templates.TemplateResponse(request=request, name=name, context=ctx)
     except TypeError:
-        ctx = dict(ctx)
         ctx["request"] = request
         return templates.TemplateResponse(name=name, context=ctx)
-
-
-class BasicAuthMiddleware(BaseHTTPMiddleware):
-    """HTTP Basic Auth gate. Active only when credentials are configured."""
-
-    def __init__(self, app, username: str, password: str):
-        super().__init__(app)
-        # Pre-encode expected credentials for constant-time comparison
-        self._username = username
-        self._password = password
-
-    async def dispatch(self, request: Request, call_next):
-        # Skip Basic Auth for WebSocket paths (use per-scan token) and
-        # for the /api/version diagnostic endpoint (needed for health checks).
-        if request.url.path.startswith("/ws/") or request.url.path == "/api/version":
-            return await call_next(request)
-
-        auth = request.headers.get("Authorization", "")
-        if auth.startswith("Basic "):
-            try:
-                decoded = base64.b64decode(auth[6:]).decode("utf-8", errors="replace")
-                supplied_user, _, supplied_pass = decoded.partition(":")
-                user_ok = secrets.compare_digest(supplied_user, self._username)
-                pass_ok = secrets.compare_digest(supplied_pass, self._password)
-                if user_ok and pass_ok:
-                    return await call_next(request)
-            except Exception:
-                pass
-
-        return Response(
-            content="Unauthorized",
-            status_code=401,
-            headers={
-                "WWW-Authenticate": 'Basic realm="Viridis Security Platform"',
-                "Cache-Control": "no-store",
-            },
-        )
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -105,6 +68,14 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+        response.headers["Permissions-Policy"] = (
+            "geolocation=(), microphone=(), camera=(), payment=()"
+        )
+        # HSTS: tell browsers this site must be HTTPS (browsers ignore for HTTP)
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
         # Prevent bfcache from restoring stale Alpine JS state (e.g. open scan modal)
         ct = response.headers.get("content-type", "")
         if "text/html" in ct:
@@ -125,25 +96,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
 
 
 def create_app(config: Dict[str, Any]) -> FastAPI:
+    from .auth import (
+        SessionMiddleware, hash_password, verify_password,
+        create_session_token, login_limiter, audit,
+        SESSION_COOKIE, SESSION_TTL, ROLES,
+    )
+
     app = FastAPI(title="Viridis – Security Platform", docs_url="/api/docs")
     app.add_middleware(SecurityHeadersMiddleware)
 
-    # ── Basic Auth (opt-in via env vars or config) ─────────────────────────
-    # Set VIRIDIS_USERNAME and VIRIDIS_PASSWORD env vars to enable.
-    # Falls back to config["web"]["auth"]["username"/"password"] if env unset.
-    _auth_cfg = config.get("web", {}).get("auth", {})
-    _auth_user = os.environ.get("VIRIDIS_USERNAME") or _auth_cfg.get("username", "")
-    _auth_pass = os.environ.get("VIRIDIS_PASSWORD") or _auth_cfg.get("password", "")
-    if _auth_user and _auth_pass:
-        app.add_middleware(BasicAuthMiddleware, username=_auth_user, password=_auth_pass)
-        _log.info("Basic Auth enabled for user '%s'", _auth_user)
-    else:
-        _log.warning(
-            "Basic Auth is DISABLED. Set VIRIDIS_USERNAME and VIRIDIS_PASSWORD "
-            "environment variables to protect this interface."
-        )
-
     db_path = config.get("web", {}).get("db_path", "data/viridis.db")
+
+    # ── Session middleware ─────────────────────────────────────────────────
+    # Must be added AFTER SecurityHeadersMiddleware so it runs first (innermost)
+    app.add_middleware(SessionMiddleware, db_path=db_path)
 
     # Jinja2 templates
     templates_dir = Path(__file__).parent / "templates"
@@ -179,6 +145,31 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     except Exception as _exc:
         _log.warning("Orphan scan cleanup failed: %s", _exc)
 
+    # ── Seed default admin user (first-run only) ───────────────────────────
+    try:
+        with get_db(db_path) as _adb:
+            _count = _adb.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+            if _count == 0:
+                _admin_pw = os.environ.get("VIRIDIS_ADMIN_PASSWORD", "")
+                if not _admin_pw:
+                    _admin_pw = secrets.token_urlsafe(12)
+                    _log.warning(
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                        "  First-run: no admin password set.\n"
+                        "  Generated admin password: %s\n"
+                        "  Set VIRIDIS_ADMIN_PASSWORD to use your own.\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+                        _admin_pw,
+                    )
+                else:
+                    _log.info("Creating initial admin user from VIRIDIS_ADMIN_PASSWORD")
+                _adb.execute(
+                    "INSERT OR IGNORE INTO users (username, password_hash, role) VALUES (?,?,?)",
+                    ("admin", hash_password(_admin_pw), "admin"),
+                )
+    except Exception as _exc:
+        _log.warning("Admin user seeding failed: %s", _exc)
+
     scheduler = None
     try:
         from .scheduler_service import get_scheduler, reload_all_schedules
@@ -200,6 +191,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     from .api.hosts import make_router as hosts_router
     from .api.export import make_router as export_router
     from .api.threats import make_router as threats_router
+    from .api.users import make_router as users_router
 
     app.include_router(groups_router(get_db_dep))
     app.include_router(tags_router(get_db_dep))
@@ -212,6 +204,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     app.include_router(hosts_router(get_db_dep))
     app.include_router(export_router(get_db_dep))
     app.include_router(threats_router(get_db_dep))
+    app.include_router(users_router(get_db_dep, db_path))
 
     # ── Background threat feed refresh (every 15 min) ─────────────────────
     try:
@@ -244,6 +237,202 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "build_sha": os.environ.get("BUILD_SHA", "dev"),
             "server_time": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
+
+    @app.get("/api/auth/me")
+    async def auth_me(request: Request):
+        user = getattr(request.state, "user", None)
+        if not user:
+            from fastapi.responses import JSONResponse
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+        return user
+
+    @app.put("/api/auth/me/password")
+    async def change_own_password(request: Request):
+        from fastapi.responses import JSONResponse
+        import json as _json
+        user = getattr(request.state, "user", None)
+        if not user:
+            return JSONResponse({"detail": "Not authenticated"}, status_code=401)
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"detail": "Invalid JSON"}, status_code=400)
+        old_pw = body.get("old_password", "")
+        new_pw = body.get("new_password", "")
+        if len(new_pw) < 8:
+            return JSONResponse({"detail": "Password must be at least 8 characters"}, status_code=422)
+        with get_db(db_path) as _db:
+            row = _db.execute(
+                "SELECT password_hash FROM users WHERE id = ?", (user["id"],)
+            ).fetchone()
+            if not row or not verify_password(old_pw, row["password_hash"]):
+                return JSONResponse({"detail": "Current password is incorrect"}, status_code=401)
+            _db.execute(
+                "UPDATE users SET password_hash = ? WHERE id = ?",
+                (hash_password(new_pw), user["id"]),
+            )
+            # Invalidate all other sessions
+            _db.execute(
+                "DELETE FROM sessions WHERE user_id = ?", (user["id"],)
+            )
+        audit(db_path, user["id"], user["username"], "user.password_change",
+              ip=request.client.host if request.client else "")
+        return {"ok": True}
+
+    # ── Login / Logout ─────────────────────────────────────────────────────
+
+    @app.get("/login", response_class=HTMLResponse)
+    async def login_page(request: Request, next: str = "/", error: str = ""):
+        # If already logged in, redirect away
+        user = getattr(request.state, "user", None)
+        if user:
+            return RedirectResponse(next or "/", status_code=302)
+        csrf_token = secrets.token_urlsafe(16)
+        resp = _tr(templates, request, "login.html", {
+            "error": error,
+            "next": next if next != "/" else "",
+            "username": "",
+            "csrf_token": csrf_token,
+        })
+        resp.set_cookie(
+            "viridis_csrf", csrf_token,
+            httponly=True, samesite="strict", max_age=300,
+        )
+        return resp
+
+    @app.post("/login")
+    async def login_submit(request: Request):
+        from fastapi.responses import JSONResponse
+        form = await request.form()
+        username  = str(form.get("username", "")).strip()
+        password  = str(form.get("password", ""))
+        next_url  = str(form.get("next", "/") or "/")
+        csrf_form = str(form.get("csrf_token", ""))
+        csrf_cookie = request.cookies.get("viridis_csrf", "")
+        client_ip = request.client.host if request.client else "unknown"
+
+        # CSRF check
+        if not csrf_form or not secrets.compare_digest(csrf_form, csrf_cookie):
+            csrf_token = secrets.token_urlsafe(16)
+            resp = _tr(templates, request, "login.html", {
+                "error": "Invalid request. Please try again.",
+                "next": next_url,
+                "username": username,
+                "csrf_token": csrf_token,
+            })
+            resp.set_cookie("viridis_csrf", csrf_token, httponly=True, samesite="strict", max_age=300)
+            return resp
+
+        # Rate limiting
+        if not login_limiter.is_allowed(client_ip):
+            csrf_token = secrets.token_urlsafe(16)
+            resp = _tr(templates, request, "login.html", {
+                "error": "Too many login attempts. Please wait 5 minutes.",
+                "next": next_url,
+                "username": username,
+                "csrf_token": csrf_token,
+            })
+            resp.set_cookie("viridis_csrf", csrf_token, httponly=True, samesite="strict", max_age=300)
+            return resp
+
+        # Validate credentials
+        user_row = None
+        try:
+            with get_db(db_path) as _db:
+                user_row = _db.execute(
+                    "SELECT id, username, password_hash, role, is_active FROM users WHERE username = ?",
+                    (username,),
+                ).fetchone()
+        except Exception:
+            pass
+
+        if not user_row or not verify_password(password, user_row["password_hash"]):
+            audit(db_path, None, username, "auth.fail", ip=client_ip)
+            csrf_token = secrets.token_urlsafe(16)
+            resp = _tr(templates, request, "login.html", {
+                "error": "Invalid username or password.",
+                "next": next_url,
+                "username": username,
+                "csrf_token": csrf_token,
+            })
+            resp.set_cookie("viridis_csrf", csrf_token, httponly=True, samesite="strict", max_age=300)
+            return resp
+
+        if not user_row["is_active"]:
+            csrf_token = secrets.token_urlsafe(16)
+            resp = _tr(templates, request, "login.html", {
+                "error": "Your account has been disabled. Contact an administrator.",
+                "next": next_url,
+                "username": username,
+                "csrf_token": csrf_token,
+            })
+            resp.set_cookie("viridis_csrf", csrf_token, httponly=True, samesite="strict", max_age=300)
+            return resp
+
+        # Create session
+        token = create_session_token()
+        import time as _time
+        expires_at = _time.strftime(
+            "%Y-%m-%d %H:%M:%S",
+            _time.gmtime(_time.time() + SESSION_TTL)
+        )
+        ua = request.headers.get("user-agent", "")[:512]
+        try:
+            with get_db(db_path) as _db:
+                _db.execute(
+                    "INSERT INTO sessions (user_id, token, expires_at, ip_address, user_agent)"
+                    " VALUES (?,?,?,?,?)",
+                    (user_row["id"], token, expires_at, client_ip, ua),
+                )
+                _db.execute(
+                    "UPDATE users SET last_login = datetime('now') WHERE id = ?",
+                    (user_row["id"],),
+                )
+        except Exception as _exc:
+            _log.error("Session creation failed: %s", _exc)
+            csrf_token = secrets.token_urlsafe(16)
+            resp = _tr(templates, request, "login.html", {
+                "error": "Login failed (internal error). Please try again.",
+                "next": next_url,
+                "username": username,
+                "csrf_token": csrf_token,
+            })
+            resp.set_cookie("viridis_csrf", csrf_token, httponly=True, samesite="strict", max_age=300)
+            return resp
+
+        login_limiter.reset(client_ip)
+        audit(db_path, user_row["id"], username, "auth.login", ip=client_ip)
+
+        # Validate next_url is relative to prevent open redirect
+        if not next_url.startswith("/") or next_url.startswith("//"):
+            next_url = "/"
+
+        resp = RedirectResponse(next_url, status_code=302)
+        resp.set_cookie(
+            SESSION_COOKIE, token,
+            httponly=True, samesite="strict",
+            max_age=SESSION_TTL,
+        )
+        resp.delete_cookie("viridis_csrf")
+        return resp
+
+    @app.post("/logout")
+    @app.get("/logout")
+    async def logout(request: Request):
+        token = request.cookies.get(SESSION_COOKIE)
+        user  = getattr(request.state, "user", None)
+        if token:
+            try:
+                with get_db(db_path) as _db:
+                    _db.execute("DELETE FROM sessions WHERE token = ?", (token,))
+            except Exception:
+                pass
+        if user:
+            audit(db_path, user.get("id"), user.get("username", "?"), "auth.logout",
+                  ip=request.client.host if request.client else "")
+        resp = RedirectResponse("/login", status_code=302)
+        resp.delete_cookie(SESSION_COOKIE)
+        return resp
 
     @app.get("/", response_class=HTMLResponse)
     async def dashboard(request: Request):

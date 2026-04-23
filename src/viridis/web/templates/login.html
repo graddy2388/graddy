@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign In – Viridis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    (function() {
+      var t = localStorage.getItem('viridis_theme') || 'dark';
+      if (t === 'light') document.documentElement.classList.add('light-mode');
+    })();
+  </script>
+  <style>
+    html.light-mode body { background-color: #f1f5f9 !important; }
+    html.light-mode .card { background-color: #ffffff !important; border-color: #e2e8f0 !important; }
+    html.light-mode .card-text { color: #0f172a !important; }
+    html.light-mode .card-muted { color: #64748b !important; }
+    html.light-mode .card-input {
+      background-color: #f8fafc !important;
+      border-color: #e2e8f0 !important;
+      color: #0f172a !important;
+    }
+    html.light-mode .card-input::placeholder { color: #94a3b8 !important; }
+    html.light-mode .card-label { color: #475569 !important; }
+  </style>
+</head>
+<body class="h-full bg-gray-950 flex items-center justify-center px-4">
+
+  <div class="w-full max-w-sm space-y-6">
+
+    <!-- Logo + title -->
+    <div class="text-center space-y-3">
+      <div class="flex justify-center">
+        <div class="w-14 h-14">
+          <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <linearGradient id="vgrad" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stop-color="#10b981"/>
+                <stop offset="100%" stop-color="#065f46"/>
+              </linearGradient>
+            </defs>
+            <rect width="36" height="36" rx="8" fill="url(#vgrad)"/>
+            <path d="M10 10 L18 24 L26 10" fill="none" stroke="white" stroke-width="2.4"
+                  stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="10" cy="10" r="2.2" fill="white"/>
+            <circle cx="26" cy="10" r="2.2" fill="white"/>
+            <circle cx="18" cy="24" r="2.2" fill="white"/>
+            <path d="M12 7 A8.5 8.5 0 0 1 24 7" fill="none" stroke="rgba(255,255,255,0.5)"
+                  stroke-width="1.4" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <div>
+        <h1 class="text-xl font-bold text-white card-text">Viridis Security Platform</h1>
+        <p class="text-sm text-gray-500 card-muted mt-0.5">Sign in to your account</p>
+      </div>
+    </div>
+
+    <!-- Login card -->
+    <div class="bg-gray-900 border border-gray-800 rounded-2xl shadow-2xl p-6 space-y-5 card">
+
+      {% if error %}
+      <div class="flex items-center gap-2.5 bg-red-950 border border-red-800 rounded-lg px-3 py-2.5">
+        <svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <span class="text-sm text-red-300">{{ error }}</span>
+      </div>
+      {% endif %}
+
+      <form method="POST" action="/login" class="space-y-4">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        {% if next %}
+        <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+
+        <div class="space-y-1.5">
+          <label class="block text-xs font-medium text-gray-400 card-label">Username</label>
+          <input name="username" type="text" autocomplete="username"
+                 value="{{ username or '' }}"
+                 required autofocus
+                 placeholder="admin"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors card-input"/>
+        </div>
+
+        <div class="space-y-1.5">
+          <label class="block text-xs font-medium text-gray-400 card-label">Password</label>
+          <input name="password" type="password" autocomplete="current-password"
+                 required
+                 placeholder="••••••••"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-colors card-input"/>
+        </div>
+
+        <button type="submit"
+                class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-semibold transition-colors shadow-sm">
+          Sign in
+        </button>
+      </form>
+
+    </div>
+
+    <!-- Footer: theme toggle + build info -->
+    <div class="flex items-center justify-between text-xs text-gray-700">
+      <span>Viridis &copy; 2025</span>
+      <button onclick="toggleTheme()"
+              class="flex items-center gap-1.5 text-gray-600 hover:text-gray-400 transition-colors"
+              title="Toggle dark/light mode">
+        <!-- Moon icon (shown in dark mode) -->
+        <svg id="icon-moon" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/>
+        </svg>
+        <!-- Sun icon (shown in light mode) -->
+        <svg id="icon-sun" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+            d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M17.657 17.657l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"/>
+        </svg>
+        <span id="theme-label">Light mode</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    function applyTheme(t) {
+      if (t === 'light') {
+        document.documentElement.classList.add('light-mode');
+        document.getElementById('icon-moon').classList.add('hidden');
+        document.getElementById('icon-sun').classList.remove('hidden');
+        document.getElementById('theme-label').textContent = 'Dark mode';
+      } else {
+        document.documentElement.classList.remove('light-mode');
+        document.getElementById('icon-moon').classList.remove('hidden');
+        document.getElementById('icon-sun').classList.add('hidden');
+        document.getElementById('theme-label').textContent = 'Light mode';
+      }
+    }
+    function toggleTheme() {
+      var cur = localStorage.getItem('viridis_theme') || 'dark';
+      var next = cur === 'dark' ? 'light' : 'dark';
+      localStorage.setItem('viridis_theme', next);
+      applyTheme(next);
+    }
+    applyTheme(localStorage.getItem('viridis_theme') || 'dark');
+  </script>
+
+</body>
+</html>
