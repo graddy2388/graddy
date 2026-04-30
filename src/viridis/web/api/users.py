@@ -100,15 +100,21 @@ def make_router(get_db_dep, db_path: str) -> APIRouter:
         if body.password is not None:
             _validate_password(body.password)
 
-        updates, params = [], []
-        if body.username  is not None: updates.append("username = ?");      params.append(body.username)
-        if body.role      is not None: updates.append("role = ?");          params.append(body.role)
-        if body.is_active is not None: updates.append("is_active = ?");     params.append(int(body.is_active))
-        if body.password  is not None: updates.append("password_hash = ?"); params.append(hash_password(body.password))
+        # Build SET clause from safe hardcoded column names only
+        _cols = {
+            "username":      body.username,
+            "role":          body.role,
+            "is_active":     int(body.is_active) if body.is_active is not None else None,
+            "password_hash": hash_password(body.password) if body.password is not None else None,
+        }
+        _set_parts = [f"{col} = ?" for col, val in _cols.items() if val is not None]
+        _set_vals  = [val           for val         in _cols.values() if val is not None]
 
-        if updates:
-            params.append(uid)
-            db.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
+        if _set_parts:
+            db.execute(
+                "UPDATE users SET " + ", ".join(_set_parts) + " WHERE id = ?",
+                _set_vals + [uid],
+            )
 
         audit(db_path, actor.get("id"), actor.get("username", "?"),
               "user.update", str(uid),

@@ -18,7 +18,7 @@ services:
     # ── Option B: build directly from GitHub source (bypasses CI) ──
     # Uncomment the 4 lines below and comment out the 'image:' line above.
     # build:
-    #   context: https://github.com/graddy2388/graddy.git#codex/graddy/viridis
+    #   context: https://github.com/graddy2388/graddy.git#claude/network-testing-bot-E65mW
     #   args:
     #     BUILD_SHA: local-build
     depends_on:
@@ -30,14 +30,68 @@ services:
       - viridis-data:/app/data      # SQLite database and scan history
       - viridis-logs:/app/logs      # Log files
       - ./config:/app/config        # Your targets.yaml and config overrides
+    environment:
+      # ── Admin credentials (first-run setup) ─────────────────────────────
+      # Set this BEFORE first start. On first startup with no users in the DB,
+      # an 'admin' account is created using this password.
+      # If unset, a random password is generated and printed to the container log.
+      # To see it: docker compose logs viridis | grep "Generated admin password"
+      - VIRIDIS_ADMIN_PASSWORD=changeme
+      # ── Optional: trust HTTPS proxy headers (Cloudflare Tunnel / nginx) ──
+      # Automatically enabled when X-Forwarded-Proto: https is present —
+      # no config change needed. Cookies gain Secure flag automatically.
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/version')"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
 
+  # ── OPTION: Cloudflare Tunnel (access from ANYWHERE, no port forwarding) ──
+  # Gives you: free HTTPS, MFA via Cloudflare Access, zero open ports.
+  # Requirements:
+  #   1. Free Cloudflare account at dash.cloudflare.com
+  #   2. Go to Zero Trust → Tunnels → Create a tunnel
+  #   3. Copy the tunnel token and paste it below
+  #   4. In Cloudflare Access, create an Application pointing to this tunnel
+  #      and enable email OTP, Google, or another MFA method
+  # Uncomment the section below to enable:
+  #
+  # cloudflare-tunnel:
+  #   image: cloudflare/cloudflared:latest
+  #   command: tunnel --no-autoupdate run
+  #   environment:
+  #     - TUNNEL_TOKEN=paste_your_tunnel_token_here
+  #   depends_on:
+  #     - viridis
+  #   restart: unless-stopped
+
+  # ── OPTION: Tailscale (access via Tailscale network, no port forwarding) ──
+  # Best if you can install Tailscale on both devices.
+  # Requirements:
+  #   1. tailscale.com account (free for personal use)
+  #   2. Generate an auth key at tailscale.com/admin/settings/keys
+  # Uncomment the section below to enable:
+  #
+  # tailscale:
+  #   image: tailscale/tailscale:latest
+  #   hostname: viridis
+  #   environment:
+  #     - TS_AUTHKEY=tskey-auth-paste_your_key_here
+  #     - TS_EXTRA_ARGS=--advertise-tags=tag:container
+  #     - TS_STATE_DIR=/var/lib/tailscale
+  #     - TS_USERSPACE=false
+  #   volumes:
+  #     - tailscale-state:/var/lib/tailscale
+  #     - /dev/net/tun:/dev/net/tun
+  #   cap_add:
+  #     - net_admin
+  #     - sys_module
+  #   network_mode: service:viridis  # shares viridis network namespace
+  #   restart: unless-stopped
+
 volumes:
   viridis-data:
   viridis-logs:
+  # tailscale-state:   # uncomment if using Tailscale option above
