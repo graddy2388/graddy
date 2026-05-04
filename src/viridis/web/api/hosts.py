@@ -74,4 +74,32 @@ def make_router(get_db_dep) -> APIRouter:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         return get_host_software(db, ip)
 
+    @r.post("/{ip}/promote")
+    def promote_host_to_target(ip: str, db=Depends(get_db_dep)):
+        """Promote a discovered host to the targets list."""
+        try:
+            ip = validate_host_path_segment(ip)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        host = db.execute(
+            "SELECT * FROM host_inventory WHERE ip_address = ?", (ip,)
+        ).fetchone()
+        if not host:
+            raise HTTPException(status_code=404, detail="Host not found in inventory")
+
+        existing = db.execute(
+            "SELECT id FROM targets WHERE host = ?", (ip,)
+        ).fetchone()
+        if existing:
+            return {"id": existing["id"], "created": False, "message": "Already a target"}
+
+        name = host["hostname"] if host["hostname"] else ip
+        db.execute(
+            "INSERT INTO targets (name, host) VALUES (?, ?)",
+            (name, ip),
+        )
+        row = db.execute("SELECT id FROM targets WHERE host = ?", (ip,)).fetchone()
+        return {"id": row["id"], "created": True, "message": f"Added {ip} as target"}
+
     return r

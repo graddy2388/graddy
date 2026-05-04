@@ -16,6 +16,16 @@
     [x-cloak] { display: none !important; }
     .caret { transition: transform 0.18s ease; }
     .caret.open { transform: rotate(90deg); }
+    @keyframes viridis-indeterminate {
+      0%   { transform: translateX(-100%) scaleX(0.4); }
+      50%  { transform: translateX(50%)   scaleX(0.7); }
+      100% { transform: translateX(200%)  scaleX(0.4); }
+    }
+    .viridis-bar-indeterminate {
+      width: 50%; background: #10b981;
+      animation: viridis-indeterminate 1.4s ease-in-out infinite;
+      transform-origin: left center;
+    }
 
     /* ── Light mode overrides ────────────────────────────────────────────── */
     html.light-mode body            { background-color: #f1f5f9 !important; color: #0f172a !important; }
@@ -262,11 +272,12 @@
           <div class="flex justify-between text-xs text-gray-400 mb-1.5">
             <span class="truncate pr-4" x-text="currentCheck || 'Initializing…'"></span>
             <span class="flex-shrink-0 font-mono"
-                  x-text="total > 0 ? done + ' / ' + total + ' (' + Math.round(done/total*100) + '%)' : '…'"></span>
+                  x-text="currentCheck && currentCheck.includes('subnet_scan') && done < total ? 'scanning…' : (total > 0 ? done + ' / ' + total + ' (' + Math.round(done/total*100) + '%)' : '…')"></span>
           </div>
-          <div class="w-full bg-gray-800 rounded-full h-1.5">
-            <div class="bg-emerald-500 h-1.5 rounded-full transition-all duration-300"
-                 :style="`width: ${total > 0 ? Math.round(done/total*100) : 3}%`"></div>
+          <div class="w-full bg-gray-800 rounded-full h-1.5 overflow-hidden">
+            <div class="h-1.5 rounded-full"
+                 :class="currentCheck && currentCheck.includes('subnet_scan') && done < total ? 'viridis-bar-indeterminate' : 'bg-emerald-500 transition-all duration-300'"
+                 :style="currentCheck && currentCheck.includes('subnet_scan') && done < total ? '' : `width: ${total > 0 ? Math.round(done/total*100) : 3}%`"></div>
           </div>
         </div>
 

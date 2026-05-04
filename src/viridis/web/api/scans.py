@@ -70,10 +70,10 @@ class ScanIn(BaseModel):
         return self
 
 
-# Default checks registry â€" new checks registered here
+# Default checks registry — new checks registered here
 _DEFAULT_CHECKS = [
-    "port_scan", "ssl", "http", "dns", "vuln", "smtp", "exposed_paths", "cipher",
-    "software_inventory",
+    "port_scan", "ssl", "http", "headers", "dns", "vuln", "smtp",
+    "exposed_paths", "cipher", "auth", "smb", "software_inventory",
 ]
 
 
@@ -138,6 +138,16 @@ def _load_check_registry():
     try:
         from ...checks.software_inventory import SoftwareInventoryCheck
         registry["software_inventory"] = SoftwareInventoryCheck
+    except ImportError:
+        pass
+    try:
+        from ...checks.smb_check import SMBCheck
+        registry["smb"] = SMBCheck
+    except ImportError:
+        pass
+    try:
+        from ...checks.auth_check import AuthCheck
+        registry["auth"] = AuthCheck
     except ImportError:
         pass
     return registry

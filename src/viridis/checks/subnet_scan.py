@@ -23,6 +23,26 @@ from .nmap_scan import _parse_nmap_xml
 logger = logging.getLogger(__name__)
 
 
+def _enrich_hostnames(hosts: List[Dict], timeout_per_host: float = 1.5) -> None:
+    """
+    For any host that nmap did not resolve, try PTR/NetBIOS/mDNS fallback.
+    Mutates the list in place.
+    """
+    try:
+        from ...hostname_resolver import resolve_hostname
+    except ImportError:
+        return
+
+    for h in hosts:
+        if not h.get("hostname"):
+            try:
+                name = resolve_hostname(h["ip"], timeout=timeout_per_host)
+                if name:
+                    h["hostname"] = name
+            except Exception:
+                pass
+
+
 def _nmap_ping_sweep(cidr: str, timeout: int = 120) -> List[Dict]:
     """Return list of {ip, hostname, mac} dicts for live hosts."""
     if shutil.which("nmap") is None:
@@ -31,13 +51,17 @@ def _nmap_ping_sweep(cidr: str, timeout: int = 120) -> List[Dict]:
     with tempfile.NamedTemporaryFile(suffix=".xml", delete=False) as f:
         output_file = f.name
 
-    cmd = ["nmap", "-sn", "-T4", "--open", "-oX", output_file, cidr]
+    # -R: always do reverse DNS; --system-dns: use OS resolver (picks up local zones)
+    cmd = ["nmap", "-sn", "-T4", "--open", "-R", "--system-dns", "-oX", output_file, cidr]
     logger.info("Subnet ping sweep: %s", " ".join(cmd))
     try:
         subprocess.run(cmd, capture_output=True, timeout=timeout, check=False)
         with open(output_file) as fh:
             xml_text = fh.read()
-        return _parse_ping_sweep_xml(xml_text)
+        hosts = _parse_ping_sweep_xml(xml_text)
+        # Supplement with NetBIOS/mDNS for hosts nmap couldn't resolve
+        _enrich_hostnames(hosts)
+        return hosts
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         logger.warning("nmap ping sweep failed: %s", exc)
         return _socket_ping_sweep(cidr)

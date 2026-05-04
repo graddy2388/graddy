@@ -153,16 +153,16 @@
     .attr('refX', 18).attr('refY', 0)
     .attr('markerWidth', 6).attr('markerHeight', 6)
     .attr('orient', 'auto')
-    .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#374151');
+    .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#6b7280');
 
   // Links
   const link = g.append('g')
     .selectAll('line')
     .data(links)
     .join('line')
-    .attr('stroke', '#374151')
-    .attr('stroke-width', 1.2)
-    .attr('stroke-opacity', 0.7);
+    .attr('stroke', '#4b5563')
+    .attr('stroke-width', 1.5)
+    .attr('stroke-opacity', 0.85);
 
   // Node groups
   const node = g.append('g')
@@ -225,8 +225,8 @@
     .attr('r', d => nodeRadius(d) + 4)
     .attr('fill', 'none')
     .attr('stroke', d => nodeColor(d))
-    .attr('stroke-width', 1)
-    .attr('stroke-opacity', 0.25);
+    .attr('stroke-width', 1.5)
+    .attr('stroke-opacity', 0.4);
 
   // Main circle
   node.append('circle')
@@ -241,7 +241,7 @@
     .text(d => d.label.length > 18 ? d.label.substring(0, 16) + '…' : d.label)
     .attr('dy', d => nodeRadius(d) + 12)
     .attr('text-anchor', 'middle')
-    .attr('fill', '#9ca3af')
+    .attr('fill', '#d1d5db')
     .attr('font-size', '10px')
     .attr('font-family', 'monospace')
     .style('pointer-events', 'none');

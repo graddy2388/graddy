@@ -7,6 +7,8 @@ from .vuln_check import VulnCheck
 from .smtp_check import SMTPCheck
 from .exposed_paths import ExposedPathsCheck
 from .cipher_check import CipherCheck
+from .smb_check import SMBCheck
+from .auth_check import AuthCheck
 
 __all__ = [
     "BaseCheck",
@@ -21,4 +23,6 @@ __all__ = [
     "SMTPCheck",
     "ExposedPathsCheck",
     "CipherCheck",
+    "SMBCheck",
+    "AuthCheck",
 ]
