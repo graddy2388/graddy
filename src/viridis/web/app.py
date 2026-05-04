@@ -290,51 +290,28 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
 
     @app.get("/login", response_class=HTMLResponse)
     async def login_page(request: Request, next: str = "/", error: str = ""):
-        # If already logged in, redirect away
         user = getattr(request.state, "user", None)
         if user:
             return RedirectResponse(next or "/", status_code=302)
-        csrf_token = secrets.token_urlsafe(16)
-        secure = _is_https(request)
-        resp = _tr(templates, request, "login.html", {
+        return _tr(templates, request, "login.html", {
             "error": error,
             "next": next if next != "/" else "",
             "username": "",
-            "csrf_token": csrf_token,
         })
-        resp.set_cookie(
-            "viridis_csrf", csrf_token,
-            httponly=True, samesite="strict", max_age=300, secure=secure,
-        )
-        return resp
-
-    def _set_csrf_cookie(resp, csrf_token: str, secure: bool):
-        resp.set_cookie("viridis_csrf", csrf_token, httponly=True, samesite="strict", max_age=300, secure=secure)
 
     @app.post("/login")
     async def login_submit(request: Request):
-        from fastapi.responses import JSONResponse
-        form = await request.form()
-        username    = str(form.get("username", "")).strip()
-        password    = str(form.get("password", ""))
-        next_url    = str(form.get("next", "/") or "/")
-        csrf_form   = str(form.get("csrf_token", ""))
-        csrf_cookie = request.cookies.get("viridis_csrf", "")
-        client_ip   = request.client.host if request.client else "unknown"
-        secure      = _is_https(request)
+        form      = await request.form()
+        username  = str(form.get("username", "")).strip()
+        password  = str(form.get("password", ""))
+        next_url  = str(form.get("next", "/") or "/")
+        client_ip = request.client.host if request.client else "unknown"
+        secure    = _is_https(request)
 
         def _login_error(msg: str):
-            tok = secrets.token_urlsafe(16)
-            r = _tr(templates, request, "login.html", {
-                "error": msg, "next": next_url,
-                "username": username, "csrf_token": tok,
+            return _tr(templates, request, "login.html", {
+                "error": msg, "next": next_url, "username": username,
             })
-            _set_csrf_cookie(r, tok, secure)
-            return r
-
-        # CSRF check
-        if not csrf_form or not secrets.compare_digest(csrf_form, csrf_cookie):
-            return _login_error("Invalid request. Please try again.")
 
         # Rate limiting
         if not login_limiter.is_allowed(client_ip):
@@ -358,7 +335,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         if not user_row["is_active"]:
             return _login_error("Your account has been disabled. Contact an administrator.")
 
-        # Create session (clean up expired ones first)
+        # Create session (prune expired ones first)
         token = create_session_token()
         import time as _time
         expires_at = _time.strftime(
@@ -368,7 +345,6 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         ua = request.headers.get("user-agent", "")[:512]
         try:
             with get_db(db_path) as _db:
-                # Prune expired sessions for this user (session hygiene)
                 _db.execute(
                     "DELETE FROM sessions WHERE user_id = ? AND expires_at <= datetime('now')",
                     (user_row["id"],),
@@ -389,7 +365,6 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         login_limiter.reset(client_ip)
         audit(db_path, user_row["id"], username, "auth.login", ip=client_ip)
 
-        # Validate next_url is relative to prevent open redirect
         if not next_url.startswith("/") or next_url.startswith("//"):
             next_url = "/"
 
@@ -399,7 +374,6 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             httponly=True, samesite="strict",
             max_age=SESSION_TTL, secure=secure,
         )
-        resp.delete_cookie("viridis_csrf")
         return resp
 
     @app.post("/logout")
