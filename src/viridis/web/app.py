@@ -768,9 +768,16 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     @app.get("/tools", response_class=HTMLResponse)
     @app.get("/tools/{tool}", response_class=HTMLResponse)
     async def tools_page(request: Request, tool: str = "nmap"):
+        with get_db(db_path) as db:
+            targets = get_targets(db)
+            hosts = get_host_inventory(db)
+            scope_ranges = get_scope_ranges(db)
         return _tr(templates, request, "tools.html", {
             "active_page": f"tools_{tool}",
             "active_tool": tool,
+            "targets": targets,
+            "hosts": hosts,
+            "scope_ranges": scope_ranges,
         })
 
     # ── Settings pages ────────────────────────────────────────────────────

@@ -2,6 +2,12 @@
 {% block title %}Tools – Viridis{% endblock %}
 
 {% block content %}
+<script>
+/* Serialise known hosts/targets/subnets from server for quick-select */
+window._viridisTargets  = {{ targets  | tojson }};
+window._viridisHosts    = {{ hosts    | tojson }};
+window._viridisSubnets  = {{ scope_ranges | tojson }};
+</script>
 <div class="p-6 space-y-6"
      x-data="{
        activeTool: null,
@@ -9,8 +15,37 @@
        host: '',
        url: '',
        subnet: '',
-       domain: '',
        error: '',
+       quickFilter: '',
+
+       /* Quick-select data loaded from server */
+       _targets:  window._viridisTargets  || [],
+       _hosts:    window._viridisHosts    || [],
+       _subnets:  window._viridisSubnets  || [],
+
+       /* Filtered quick-pick list for the current tool type */
+       get quickItems() {
+         const q  = this.quickFilter.toLowerCase();
+         const t  = this.toolMeta.type;
+         if (t === 'subnet') {
+           const items = this._subnets.map(s => ({ label: s.cidr, sub: s.description || '', value: s.cidr }));
+           return q ? items.filter(i => i.label.includes(q) || i.sub.toLowerCase().includes(q)) : items;
+         }
+         /* Merge targets + discovered hosts, deduplicate by host value */
+         const seen = new Set();
+         const items = [];
+         this._targets.forEach(t => {
+           if (!seen.has(t.host)) { seen.add(t.host); items.push({ label: t.name, sub: t.host, value: t.host }); }
+         });
+         this._hosts.forEach(h => {
+           if (!seen.has(h.ip_address)) {
+             seen.add(h.ip_address);
+             items.push({ label: h.hostname || h.ip_address, sub: h.ip_address, value: h.ip_address });
+           }
+         });
+         if (!q) return items.slice(0, 24);
+         return items.filter(i => i.label.toLowerCase().includes(q) || i.sub.includes(q)).slice(0, 24);
+       },
 
        /* Tool definitions: id → {label, placeholder, inputType, checks, btnLabel} */
        tools: {
@@ -28,15 +63,25 @@
          vuln:       { label:'Host / IP Address', ph:'192.168.1.1 or hostname', type:'host',   checks:['port_scan','vuln'],            btn:'Run Vuln Check' },
          enum4linux: { label:'IP Address or Hostname', ph:'192.168.1.1 (Windows/Samba host)', type:'host', checks:['enum4linux'],    btn:'Run Enum4Linux' },
          hydra:      { label:'Host / IP Address', ph:'192.168.1.1 or ssh.example.com', type:'host', checks:['hydra'],               btn:'Run Hydra' },
+         smb:        { label:'Host / IP Address', ph:'192.168.1.1 or hostname', type:'host',   checks:['smb'],                        btn:'Run SMB Check' },
+         auth:       { label:'Host / IP Address', ph:'192.168.1.1 or hostname', type:'host',   checks:['auth'],                       btn:'Run Auth Check' },
        },
 
        open(toolId) {
          this.activeTool = toolId;
          this.toolMeta = this.tools[toolId] || {};
-         this.host = ''; this.url = ''; this.subnet = ''; this.domain = '';
+         this.host = ''; this.url = ''; this.subnet = '';
+         this.error = ''; this.quickFilter = '';
+       },
+       close() { this.activeTool = null; this.error = ''; this.quickFilter = ''; },
+
+       pick(value) {
+         const t = this.toolMeta.type;
+         if (t === 'subnet')     this.subnet = value;
+         else if (t === 'url')   this.url = value.startsWith('http') ? value : 'http://' + value;
+         else                    this.host = value;
          this.error = '';
        },
-       close() { this.activeTool = null; this.error = ''; },
 
        _currentValue() {
          const t = this.toolMeta.type;
@@ -51,7 +96,6 @@
              this.error = 'Enter a valid CIDR range (e.g. 10.0.0.0/24).'; return false;
            }
          } else if (this.toolMeta.type === 'url') {
-           /* Allow bare hostname/IP or full URL */
            if (v.length > 2048) { this.error = 'URL is too long.'; return false; }
          } else {
            if (v.length > 253) { this.error = 'Host must be 253 characters or fewer.'; return false; }
@@ -67,7 +111,6 @@
          if (this.toolMeta.type === 'subnet') {
            window.startScan({ subnet: v });
          } else {
-           /* Strip protocol prefix so the backend gets a clean host */
            const host = v.replace(/^https?:\/\//i, '').split('/')[0];
            window.startScan({ adhoc_host: host, adhoc_checks: checks });
          }
@@ -303,38 +346,102 @@
     </div>
   </section>
 
-  <!-- Unified input modal (host/IP and URL tools) -->
+  <!-- RED TEAM -->
+  <section class="space-y-3">
+    <div class="flex items-center space-x-3">
+      <span class="text-xs font-semibold text-red-700 uppercase tracking-widest">Red Team</span>
+      <div class="flex-1 h-px bg-gray-800"></div>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <h3 class="text-sm font-semibold text-white">SMB Check</h3>
+            <span class="text-xs text-gray-600 font-mono">smb</span>
+          </div>
+          <p class="text-xs text-gray-500">SMBv1 detection (EternalBlue), signing status (relay attacks), port exposure</p>
+          <p class="text-xs text-gray-600 mt-1">Input: IP address or hostname</p>
+        </div>
+        <button @click="open('smb')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run SMB Check</button>
+      </div>
+
+      <div class="bg-gray-900 border border-gray-800 rounded-xl p-5 space-y-3 hover:border-gray-700 transition-colors">
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <h3 class="text-sm font-semibold text-white">Auth Check</h3>
+            <span class="text-xs text-gray-600 font-mono">auth</span>
+          </div>
+          <p class="text-xs text-gray-500">FTP anon login, Telnet exposure, Redis/LDAP unauth, HTTP default credentials</p>
+          <p class="text-xs text-gray-600 mt-1">Input: IP address or hostname</p>
+        </div>
+        <button @click="open('auth')" class="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors">Run Auth Check</button>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Unified input modal — all tools except subnet -->
   <template x-if="activeTool && activeTool !== 'subnet'">
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70" @click.self="close()">
-      <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4">
+
+        <!-- Header -->
         <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
           <div>
             <h3 class="text-sm font-semibold text-white" x-text="tools[activeTool]?.btn || 'Run Tool'"></h3>
             <p class="text-xs text-gray-500 mt-0.5" x-text="toolMeta.label || 'Target'"></p>
           </div>
           <button @click="close()" class="text-gray-500 hover:text-gray-300 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
           </button>
         </div>
-        <div class="px-5 py-4 space-y-3">
+
+        <div class="px-5 py-4 space-y-4">
+
+          <!-- Manual input -->
           <div>
             <label class="block text-xs text-gray-400 mb-1.5" x-text="toolMeta.label || 'Target'"></label>
-            <!-- URL input for web tools -->
             <template x-if="toolMeta.type === 'url'">
               <input x-model="url" type="url" :placeholder="toolMeta.ph || 'https://example.com'"
                      maxlength="2048" autofocus @keydown.enter="run()"
-                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500">
+                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors">
             </template>
-            <!-- Host/IP input for network tools -->
             <template x-if="toolMeta.type !== 'url'">
               <input x-model="host" type="text" :placeholder="toolMeta.ph || '192.168.1.1 or hostname'"
                      maxlength="253" autofocus @keydown.enter="run()"
-                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500">
+                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors">
             </template>
           </div>
+
+          <!-- Quick-select section (only shown when there are known hosts/targets) -->
+          <template x-if="quickItems.length > 0">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">Quick select</span>
+                <input x-model="quickFilter" type="text" placeholder="Filter…"
+                       class="bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-300 font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-600 w-32 transition-colors">
+              </div>
+              <div class="max-h-40 overflow-y-auto rounded-lg border border-gray-800 divide-y divide-gray-800">
+                <template x-for="item in quickItems" :key="item.value">
+                  <button @click="pick(item.value)"
+                          class="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-800 transition-colors group text-left"
+                          :class="(_currentValue() === item.value) ? 'bg-emerald-950 border-l-2 border-emerald-500' : ''">
+                    <span class="text-xs text-white font-medium truncate max-w-[55%]" x-text="item.label"></span>
+                    <span class="text-xs text-gray-500 font-mono truncate ml-2" x-text="item.sub"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+
           <div x-show="error" class="text-red-400 text-xs bg-red-950 border border-red-900 rounded-lg px-3 py-2" x-text="error"></div>
         </div>
-        <div class="px-5 py-4 border-t border-gray-700 flex justify-end space-x-3">
+
+        <!-- Footer -->
+        <div class="px-5 py-3 border-t border-gray-700 flex justify-end space-x-3">
           <button @click="close()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Cancel</button>
           <button @click="run()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors"
                   x-text="toolMeta.btn || 'Run'"></button>
@@ -346,26 +453,57 @@
   <!-- Subnet modal -->
   <template x-if="activeTool === 'subnet'">
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-70" @click.self="close()">
-      <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-md mx-4">
+      <div class="bg-gray-900 border border-gray-700 rounded-xl shadow-2xl w-full max-w-lg mx-4">
+
+        <!-- Header -->
         <div class="px-5 py-4 border-b border-gray-700 flex items-center justify-between">
           <div>
             <h3 class="text-sm font-semibold text-white">Subnet Discovery</h3>
             <p class="text-xs text-gray-500 mt-0.5">CIDR range (e.g. 10.0.0.0/24)</p>
           </div>
           <button @click="close()" class="text-gray-500 hover:text-gray-300 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
           </button>
         </div>
-        <div class="px-5 py-4 space-y-3">
+
+        <div class="px-5 py-4 space-y-4">
+
+          <!-- CIDR input -->
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">CIDR Range</label>
             <input x-model="subnet" type="text" placeholder="e.g. 10.0.0.0/24"
                    maxlength="50" autofocus @keydown.enter="run()"
-                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500">
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500 transition-colors">
           </div>
+
+          <!-- Quick-select scope ranges -->
+          <template x-if="quickItems.length > 0">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="text-xs text-gray-500 font-medium uppercase tracking-wide">Known subnets</span>
+                <input x-model="quickFilter" type="text" placeholder="Filter…"
+                       class="bg-gray-800 border border-gray-700 rounded px-2 py-0.5 text-xs text-gray-300 font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-600 w-32 transition-colors">
+              </div>
+              <div class="max-h-36 overflow-y-auto rounded-lg border border-gray-800 divide-y divide-gray-800">
+                <template x-for="item in quickItems" :key="item.value">
+                  <button @click="pick(item.value)"
+                          class="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-800 transition-colors text-left"
+                          :class="subnet === item.value ? 'bg-emerald-950 border-l-2 border-emerald-500' : ''">
+                    <span class="text-xs text-white font-mono" x-text="item.label"></span>
+                    <span class="text-xs text-gray-500 truncate ml-2" x-text="item.sub"></span>
+                  </button>
+                </template>
+              </div>
+            </div>
+          </template>
+
           <div x-show="error" class="text-red-400 text-xs bg-red-950 border border-red-900 rounded-lg px-3 py-2" x-text="error"></div>
         </div>
-        <div class="px-5 py-4 border-t border-gray-700 flex justify-end space-x-3">
+
+        <!-- Footer -->
+        <div class="px-5 py-3 border-t border-gray-700 flex justify-end space-x-3">
           <button @click="close()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm transition-colors">Cancel</button>
           <button @click="run()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-sm font-medium transition-colors">Scan Subnet</button>
         </div>
