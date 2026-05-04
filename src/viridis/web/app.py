@@ -780,6 +780,36 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             "scope_ranges": scope_ranges,
         })
 
+    # ── Integrations config API ───────────────────────────────────────────
+
+    @app.get("/api/integrations")
+    async def get_integrations():
+        from fastapi.responses import JSONResponse
+        with get_db(db_path) as _db:
+            row = _db.execute(
+                "SELECT value FROM app_settings WHERE key = 'integrations'"
+            ).fetchone()
+        if row:
+            try:
+                return _json.loads(row["value"])
+            except Exception:
+                pass
+        return {}
+
+    @app.put("/api/integrations")
+    async def save_integrations(request: Request):
+        from fastapi.responses import JSONResponse
+        try:
+            body = await request.json()
+        except Exception:
+            return JSONResponse({"detail": "Invalid JSON"}, status_code=400)
+        with get_db(db_path) as _db:
+            _db.execute(
+                "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
+                ("integrations", _json.dumps(body)),
+            )
+        return {"ok": True}
+
     # ── Settings pages ────────────────────────────────────────────────────
 
     @app.get("/settings/{section}", response_class=HTMLResponse)

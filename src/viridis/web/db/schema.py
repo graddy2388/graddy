@@ -231,6 +231,13 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);
 CREATE INDEX IF NOT EXISTS idx_sessions_user  ON sessions(user_id);
 
+-- ── App Settings (key-value store for server-side config) ─────────────────
+
+CREATE TABLE IF NOT EXISTS app_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT DEFAULT ''
+);
+
 -- ── Audit Log ──────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -433,6 +440,11 @@ def _migrate(conn) -> None:
             details TEXT DEFAULT '',
             ip_address TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key   TEXT PRIMARY KEY,
+            value TEXT DEFAULT ''
         );
     """)
     conn.commit()

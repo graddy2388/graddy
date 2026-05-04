@@ -2,52 +2,64 @@
 {% block title %}Integrations – Viridis{% endblock %}
 
 {% block content %}
-<div class="p-6 space-y-5" x-data="integrationsApp()">
+<div class="p-6 space-y-6" x-data="integrationsApp()">
 
-  <div>
-    <h1 class="text-xl font-bold text-white">Integrations</h1>
-    <p class="text-sm text-gray-500 mt-0.5">Connect Viridis to your alerting, ticketing, and security stack</p>
+  <div class="flex items-center justify-between">
+    <div>
+      <h1 class="text-xl font-bold text-white">Integrations</h1>
+      <p class="text-sm text-gray-500 mt-0.5">Connect to alerting, ticketing, SIEM, and threat intelligence platforms</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <span x-show="dirty && !saving" class="text-xs text-amber-400">Unsaved changes</span>
+      <span x-show="saved" x-transition class="text-xs text-emerald-400">Saved</span>
+      <span x-show="saveError" x-transition class="text-xs text-red-400" x-text="saveError"></span>
+      <button @click="save()" :disabled="saving"
+              class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white rounded-lg text-xs font-medium transition-colors">
+        <span x-show="!saving">Save all</span>
+        <span x-show="saving">Saving…</span>
+      </button>
+    </div>
   </div>
 
-  <!-- Notifications -->
-  <div class="space-y-3">
-    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Notifications</h2>
+  <!-- ── NOTIFICATIONS ──────────────────────────────────────────────── -->
+  <section class="space-y-3">
+    <div class="flex items-center space-x-3">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Notifications</span>
+      <div class="flex-1 h-px bg-gray-800"></div>
+    </div>
 
     <!-- Slack -->
     <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
          :class="cfg.slack.enabled ? 'border-emerald-800' : 'border-gray-800'">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">💬</div>
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zm2.521-10.123a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zm10.122 2.521a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.268 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.165 0a2.528 2.528 0 0 1 2.523 2.522v6.312zm-2.523 10.122a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.165 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.268a2.527 2.527 0 0 1-2.52-2.523 2.526 2.526 0 0 1 2.52-2.52h6.313A2.527 2.527 0 0 1 24 15.165a2.528 2.528 0 0 1-2.522 2.523h-6.313z" fill="#4A154B"/>
+            </svg>
+          </div>
           <div>
             <div class="text-sm font-semibold text-white">Slack</div>
-            <div class="text-xs text-gray-500">Post scan alerts and findings to a Slack channel</div>
+            <div class="text-xs text-gray-500">Post scan alerts to a channel via Incoming Webhook</div>
           </div>
         </div>
-        <button @click="cfg.slack.enabled = !cfg.slack.enabled; save()"
-                :class="cfg.slack.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+        <button @click="toggle('slack')" :class="cfg.slack.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
                 class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
           <span :class="cfg.slack.enabled ? 'translate-x-4' : 'translate-x-1'"
                 class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
         </button>
       </div>
       <div x-show="cfg.slack.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
-        <div>
-          <label class="block text-xs text-gray-400 mb-1.5">Webhook URL</label>
-          <input x-model="cfg.slack.webhook" type="text" placeholder="https://hooks.slack.com/services/..."
-                 @blur="save()"
-                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div>
-            <label class="block text-xs text-gray-400 mb-1.5">Channel</label>
-            <input x-model="cfg.slack.channel" type="text" placeholder="#security-alerts"
-                   @blur="save()"
-                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1.5">Incoming Webhook URL</label>
+            <input x-model="cfg.slack.webhook_url" type="text" @change="dirty=true"
+                   placeholder="https://hooks.slack.com/services/T.../B.../..."
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
           <div>
-            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity</label>
-            <select x-model="cfg.slack.min_severity" @change="save()"
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+            <select x-model="cfg.slack.min_severity" @change="dirty=true"
                     class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
               <option value="critical">Critical only</option>
               <option value="high">High+</option>
@@ -56,9 +68,197 @@
             </select>
           </div>
         </div>
-        <button @click="testSlack()" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors">
+        <button @click="test('slack')" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors">
           Send test message
         </button>
+      </div>
+    </div>
+
+    <!-- Discord -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.discord.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-[#5865F2] rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057.1 18.08.114 18.1.128 18.116a19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-white">Discord</div>
+            <div class="text-xs text-gray-500">Post rich embeds to a Discord channel via Webhook</div>
+          </div>
+        </div>
+        <button @click="toggle('discord')" :class="cfg.discord.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.discord.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.discord.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1.5">Webhook URL</label>
+            <input x-model="cfg.discord.webhook_url" type="text" @change="dirty=true"
+                   placeholder="https://discord.com/api/webhooks/..."
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+            <select x-model="cfg.discord.min_severity" @change="dirty=true"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="critical">Critical only</option>
+              <option value="high">High+</option>
+              <option value="medium">Medium+</option>
+              <option value="low">All findings</option>
+            </select>
+          </div>
+        </div>
+        <button @click="test('discord')" class="px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-xs font-medium transition-colors">Send test</button>
+      </div>
+    </div>
+
+    <!-- Microsoft Teams -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.teams.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-[#6264a7] rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M20.25 8.25H13.5V3.75a.75.75 0 0 0-.75-.75H3.75A.75.75 0 0 0 3 3.75v10.5a.75.75 0 0 0 .75.75h1.5v3.75A.75.75 0 0 0 6 19.5h5.25V21a.75.75 0 0 0 .75.75h8.25A.75.75 0 0 0 21 21V9a.75.75 0 0 0-.75-.75z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-white">Microsoft Teams</div>
+            <div class="text-xs text-gray-500">Post MessageCards to a Teams channel via Incoming Webhook</div>
+          </div>
+        </div>
+        <button @click="toggle('teams')" :class="cfg.teams.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.teams.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.teams.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1.5">Webhook URL</label>
+            <input x-model="cfg.teams.webhook_url" type="text" @change="dirty=true"
+                   placeholder="https://yourcompany.webhook.office.com/webhookb2/..."
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+            <select x-model="cfg.teams.min_severity" @change="dirty=true"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="critical">Critical only</option>
+              <option value="high">High+</option>
+              <option value="medium">Medium+</option>
+              <option value="low">All findings</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Telegram -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.telegram.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-[#2AABEE] rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-white">Telegram</div>
+            <div class="text-xs text-gray-500">Send alerts via Telegram Bot to a chat or channel</div>
+          </div>
+        </div>
+        <button @click="toggle('telegram')" :class="cfg.telegram.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.telegram.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.telegram.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Bot Token</label>
+            <input x-model="cfg.telegram.bot_token" type="password" @change="dirty=true"
+                   placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Chat ID</label>
+            <input x-model="cfg.telegram.chat_id" type="text" @change="dirty=true"
+                   placeholder="-100123456789 or @channelname"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+            <select x-model="cfg.telegram.min_severity" @change="dirty=true"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="critical">Critical only</option>
+              <option value="high">High+</option>
+              <option value="medium">Medium+</option>
+              <option value="low">All findings</option>
+            </select>
+          </div>
+        </div>
+        <p class="text-xs text-gray-600">Create a bot via @BotFather, add it to your chat/channel, then get the Chat ID from @userinfobot.</p>
+      </div>
+    </div>
+
+    <!-- ntfy -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.ntfy.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-base font-bold text-emerald-400">📲</div>
+          <div>
+            <div class="text-sm font-semibold text-white">ntfy</div>
+            <div class="text-xs text-gray-500">Self-hosted or ntfy.sh push notifications to any device</div>
+          </div>
+        </div>
+        <button @click="toggle('ntfy')" :class="cfg.ntfy.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.ntfy.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.ntfy.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Server URL</label>
+            <input x-model="cfg.ntfy.server" type="text" @change="dirty=true"
+                   placeholder="https://ntfy.sh"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Topic</label>
+            <input x-model="cfg.ntfy.topic" type="text" @change="dirty=true"
+                   placeholder="viridis-alerts"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Access Token (optional)</label>
+            <input x-model="cfg.ntfy.token" type="password" @change="dirty=true"
+                   placeholder="tk_..."
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+            <select x-model="cfg.ntfy.min_severity" @change="dirty=true"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="critical">Critical only</option>
+              <option value="high">High+</option>
+              <option value="medium">Medium+</option>
+              <option value="low">All findings</option>
+            </select>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -67,26 +267,37 @@
          :class="cfg.pagerduty.enabled ? 'border-emerald-800' : 'border-gray-800'">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">🔔</div>
+          <div class="w-9 h-9 bg-[#06AC38] rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">PD</div>
           <div>
             <div class="text-sm font-semibold text-white">PagerDuty</div>
-            <div class="text-xs text-gray-500">Create incidents for critical and high severity findings</div>
+            <div class="text-xs text-gray-500">Create incidents via Events API v2 for critical findings</div>
           </div>
         </div>
-        <button @click="cfg.pagerduty.enabled = !cfg.pagerduty.enabled; save()"
-                :class="cfg.pagerduty.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+        <button @click="toggle('pagerduty')" :class="cfg.pagerduty.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
                 class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
           <span :class="cfg.pagerduty.enabled ? 'translate-x-4' : 'translate-x-1'"
                 class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
         </button>
       </div>
       <div x-show="cfg.pagerduty.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
-        <div>
-          <label class="block text-xs text-gray-400 mb-1.5">Integration Key (Events API v2)</label>
-          <input x-model="cfg.pagerduty.key" type="password" placeholder="••••••••••••••••"
-                 @blur="save()"
-                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div class="md:col-span-2">
+            <label class="block text-xs text-gray-400 mb-1.5">Integration Key (Service — Events API v2)</label>
+            <input x-model="cfg.pagerduty.integration_key" type="password" @change="dirty=true"
+                   placeholder="••••••••••••••••••••••••••••••••"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+            <select x-model="cfg.pagerduty.min_severity" @change="dirty=true"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="critical">Critical only</option>
+              <option value="high">High+</option>
+              <option value="medium">Medium+</option>
+            </select>
+          </div>
         </div>
+        <p class="text-xs text-gray-600">In PagerDuty: Service Directory → your service → Integrations → Add Events API v2.</p>
       </div>
     </div>
 
@@ -101,8 +312,7 @@
             <div class="text-xs text-gray-500">Send scan summaries and alert digests via email</div>
           </div>
         </div>
-        <button @click="cfg.email.enabled = !cfg.email.enabled; save()"
-                :class="cfg.email.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+        <button @click="toggle('email')" :class="cfg.email.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
                 class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
           <span :class="cfg.email.enabled ? 'translate-x-4' : 'translate-x-1'"
                 class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
@@ -112,50 +322,58 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">SMTP Host</label>
-            <input x-model="cfg.email.host" type="text" placeholder="smtp.example.com"
-                   @blur="save()"
+            <input x-model="cfg.email.smtp_host" type="text" @change="dirty=true" placeholder="smtp.example.com"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">Port</label>
-            <input x-model="cfg.email.port" type="number" placeholder="587"
-                   @blur="save()"
+            <input x-model="cfg.email.smtp_port" type="number" @change="dirty=true" placeholder="587"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">SMTP Username</label>
+            <input x-model="cfg.email.smtp_user" type="text" @change="dirty=true" placeholder="alerts@example.com"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">SMTP Password</label>
+            <input x-model="cfg.email.smtp_password" type="password" @change="dirty=true" placeholder="••••••••"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">From address</label>
-            <input x-model="cfg.email.from" type="email" placeholder="viridis@example.com"
-                   @blur="save()"
+            <input x-model="cfg.email.from_addr" type="email" @change="dirty=true" placeholder="viridis@example.com"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
           <div>
-            <label class="block text-xs text-gray-400 mb-1.5">Recipients</label>
-            <input x-model="cfg.email.to" type="text" placeholder="sec@example.com, soc@example.com"
-                   @blur="save()"
+            <label class="block text-xs text-gray-400 mb-1.5">Recipients (comma-separated)</label>
+            <input x-model="cfg.email.to" type="text" @change="dirty=true" placeholder="sec@example.com, soc@example.com"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Ticketing -->
-  <div class="space-y-3">
-    <h2 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Ticketing</h2>
+  <!-- ── TICKETING ───────────────────────────────────────────────────── -->
+  <section class="space-y-3">
+    <div class="flex items-center space-x-3">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Ticketing</span>
+      <div class="flex-1 h-px bg-gray-800"></div>
+    </div>
 
     <!-- Jira -->
     <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
          :class="cfg.jira.enabled ? 'border-emerald-800' : 'border-gray-800'">
       <div class="flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">🎯</div>
+          <div class="w-9 h-9 bg-[#0052CC] rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">JR</div>
           <div>
             <div class="text-sm font-semibold text-white">Jira</div>
-            <div class="text-xs text-gray-500">Auto-create Jira tickets for critical and high findings</div>
+            <div class="text-xs text-gray-500">Auto-create Jira issues for critical and high findings</div>
           </div>
         </div>
-        <button @click="cfg.jira.enabled = !cfg.jira.enabled; save()"
-                :class="cfg.jira.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+        <button @click="toggle('jira')" :class="cfg.jira.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
                 class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
           <span :class="cfg.jira.enabled ? 'translate-x-4' : 'translate-x-1'"
                 class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
@@ -165,33 +383,82 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">Jira URL</label>
-            <input x-model="cfg.jira.url" type="text" placeholder="https://yourcompany.atlassian.net"
-                   @blur="save()"
+            <input x-model="cfg.jira.url" type="text" @change="dirty=true" placeholder="https://yourcompany.atlassian.net"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">Project Key</label>
-            <input x-model="cfg.jira.project" type="text" placeholder="SEC"
-                   @blur="save()"
+            <input x-model="cfg.jira.project" type="text" @change="dirty=true" placeholder="SEC"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
           <div>
             <label class="block text-xs text-gray-400 mb-1.5">API Token</label>
-            <input x-model="cfg.jira.token" type="password" placeholder="••••••••"
-                   @blur="save()"
+            <input x-model="cfg.jira.token" type="password" @change="dirty=true" placeholder="••••••••"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
           <div>
-            <label class="block text-xs text-gray-400 mb-1.5">Assignee email</label>
-            <input x-model="cfg.jira.assignee" type="email" placeholder="sec-lead@example.com"
-                   @blur="save()"
+            <label class="block text-xs text-gray-400 mb-1.5">Reporter email</label>
+            <input x-model="cfg.jira.user_email" type="email" @change="dirty=true" placeholder="user@yourcompany.com"
                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
           </div>
         </div>
+        <p class="text-xs text-gray-600">Generate an API token at id.atlassian.com → Security → API tokens.</p>
       </div>
     </div>
 
-    <!-- Webhook -->
+    <!-- GitHub Issues -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.github.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-sm font-semibold text-white">GitHub Issues</div>
+            <div class="text-xs text-gray-500">Open issues in a GitHub repository for scan findings</div>
+          </div>
+        </div>
+        <button @click="toggle('github')" :class="cfg.github.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.github.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.github.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Repository (owner/repo)</label>
+            <input x-model="cfg.github.repo" type="text" @change="dirty=true" placeholder="myorg/security-issues"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Personal Access Token</label>
+            <input x-model="cfg.github.token" type="password" @change="dirty=true" placeholder="ghp_..."
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Label</label>
+            <input x-model="cfg.github.label" type="text" @change="dirty=true" placeholder="security"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+            <select x-model="cfg.github.min_severity" @change="dirty=true"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="critical">Critical only</option>
+              <option value="high">High+</option>
+              <option value="medium">Medium+</option>
+            </select>
+          </div>
+        </div>
+        <p class="text-xs text-gray-600">Token needs <code class="bg-gray-800 px-1 rounded">repo</code> scope (or <code class="bg-gray-800 px-1 rounded">public_repo</code> for public repos).</p>
+      </div>
+    </div>
+
+    <!-- Custom Webhook -->
     <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
          :class="cfg.webhook.enabled ? 'border-emerald-800' : 'border-gray-800'">
       <div class="flex items-center justify-between">
@@ -199,11 +466,10 @@
           <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">🔗</div>
           <div>
             <div class="text-sm font-semibold text-white">Custom Webhook</div>
-            <div class="text-xs text-gray-500">POST scan events as JSON to any HTTP endpoint</div>
+            <div class="text-xs text-gray-500">POST scan findings as structured JSON to any HTTP endpoint (SOAR, n8n, Zapier…)</div>
           </div>
         </div>
-        <button @click="cfg.webhook.enabled = !cfg.webhook.enabled; save()"
-                :class="cfg.webhook.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+        <button @click="toggle('webhook')" :class="cfg.webhook.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
                 class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
           <span :class="cfg.webhook.enabled ? 'translate-x-4' : 'translate-x-1'"
                 class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
@@ -212,46 +478,315 @@
       <div x-show="cfg.webhook.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
         <div>
           <label class="block text-xs text-gray-400 mb-1.5">Endpoint URL</label>
-          <input x-model="cfg.webhook.url" type="text" placeholder="https://your-siem.example.com/ingest"
-                 @blur="save()"
+          <input x-model="cfg.webhook.url" type="text" @change="dirty=true" placeholder="https://your-siem.example.com/ingest"
                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
         </div>
         <div>
-          <label class="block text-xs text-gray-400 mb-1.5">Auth Header (optional)</label>
-          <input x-model="cfg.webhook.auth" type="text" placeholder="Bearer my-secret-token"
-                 @blur="save()"
+          <label class="block text-xs text-gray-400 mb-1.5">Authorization Header (optional)</label>
+          <input x-model="cfg.webhook.auth_header" type="text" @change="dirty=true" placeholder="Bearer my-secret-token"
                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+          <select x-model="cfg.webhook.min_severity" @change="dirty=true"
+                  class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500 w-48">
+            <option value="critical">Critical only</option>
+            <option value="high">High+</option>
+            <option value="medium">Medium+</option>
+            <option value="low">All findings</option>
+          </select>
         </div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Saved indicator -->
-  <p x-show="saved" x-transition class="text-xs text-emerald-400">Settings saved.</p>
+  <!-- ── SIEM / LOG MANAGEMENT ──────────────────────────────────────── -->
+  <section class="space-y-3">
+    <div class="flex items-center space-x-3">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-widest">SIEM / Log Management</span>
+      <div class="flex-1 h-px bg-gray-800"></div>
+    </div>
+
+    <!-- Splunk -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.splunk.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-[#000000] rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold text-xs border border-gray-700">SPL</div>
+          <div>
+            <div class="text-sm font-semibold text-white">Splunk</div>
+            <div class="text-xs text-gray-500">Send events to Splunk via HTTP Event Collector (HEC)</div>
+          </div>
+        </div>
+        <button @click="toggle('splunk')" :class="cfg.splunk.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.splunk.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.splunk.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="block text-xs text-gray-400 mb-1.5">HEC URL</label>
+            <input x-model="cfg.splunk.hec_url" type="text" @change="dirty=true" placeholder="https://splunk.example.com:8088"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div class="col-span-2">
+            <label class="block text-xs text-gray-400 mb-1.5">HEC Token</label>
+            <input x-model="cfg.splunk.hec_token" type="password" @change="dirty=true" placeholder="••••••••-••••-••••-••••-••••••••••••"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Index</label>
+            <input x-model="cfg.splunk.index" type="text" @change="dirty=true" placeholder="main"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Alert on severity ≥</label>
+            <select x-model="cfg.splunk.min_severity" @change="dirty=true"
+                    class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+              <option value="critical">Critical only</option>
+              <option value="high">High+</option>
+              <option value="medium">Medium+</option>
+              <option value="low">All findings</option>
+            </select>
+          </div>
+          <div class="flex items-center gap-2 col-span-2">
+            <input type="checkbox" id="splunk-verify-ssl" x-model="cfg.splunk.verify_ssl" @change="dirty=true"
+                   class="rounded border-gray-600 bg-gray-800 text-emerald-500 focus:ring-emerald-500"/>
+            <label for="splunk-verify-ssl" class="text-xs text-gray-400">Verify SSL certificate</label>
+          </div>
+        </div>
+        <p class="text-xs text-gray-600">Settings → Data Inputs → HTTP Event Collector to create a token. Uncheck SSL verify for self-signed certs.</p>
+      </div>
+    </div>
+
+    <!-- Elastic / OpenSearch -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.elastic.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-[#07ADAD] rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">ELK</div>
+          <div>
+            <div class="text-sm font-semibold text-white">Elastic / OpenSearch</div>
+            <div class="text-xs text-gray-500">Index findings into Elasticsearch or OpenSearch via REST API</div>
+          </div>
+        </div>
+        <button @click="toggle('elastic')" :class="cfg.elastic.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.elastic.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.elastic.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div class="grid grid-cols-2 gap-3">
+          <div class="col-span-2">
+            <label class="block text-xs text-gray-400 mb-1.5">Elasticsearch URL</label>
+            <input x-model="cfg.elastic.url" type="text" @change="dirty=true" placeholder="http://localhost:9200"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">Index name</label>
+            <input x-model="cfg.elastic.index" type="text" @change="dirty=true" placeholder="viridis-findings"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1.5">API Key (optional)</label>
+            <input x-model="cfg.elastic.api_key" type="password" @change="dirty=true" placeholder="base64encodedkey"
+                   class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+          </div>
+        </div>
+        <p class="text-xs text-gray-600">Compatible with Elasticsearch 7/8 and OpenSearch 1/2. Creates the index automatically if it doesn't exist.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── THREAT INTELLIGENCE ────────────────────────────────────────── -->
+  <section class="space-y-3">
+    <div class="flex items-center space-x-3">
+      <span class="text-xs font-semibold text-gray-500 uppercase tracking-widest">Threat Intelligence</span>
+      <div class="flex-1 h-px bg-gray-800"></div>
+    </div>
+
+    <!-- VirusTotal -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.virustotal.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-[#394EFF] rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">VT</div>
+          <div>
+            <div class="text-sm font-semibold text-white">VirusTotal</div>
+            <div class="text-xs text-gray-500">Enrich findings with VirusTotal reputation lookups for IPs and URLs</div>
+          </div>
+        </div>
+        <button @click="toggle('virustotal')" :class="cfg.virustotal.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.virustotal.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.virustotal.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">API Key</label>
+          <input x-model="cfg.virustotal.api_key" type="password" @change="dirty=true" placeholder="64-character API key"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <p class="text-xs text-gray-600">Free tier: 4 lookups/min, 500/day. Get your key at virustotal.com → API key.</p>
+      </div>
+    </div>
+
+    <!-- Shodan -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.shodan.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-[#B72025] rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold text-xs">SHD</div>
+          <div>
+            <div class="text-sm font-semibold text-white">Shodan</div>
+            <div class="text-xs text-gray-500">Look up discovered hosts in Shodan for external exposure data</div>
+          </div>
+        </div>
+        <button @click="toggle('shodan')" :class="cfg.shodan.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.shodan.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.shodan.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">API Key</label>
+          <input x-model="cfg.shodan.api_key" type="password" @change="dirty=true" placeholder="••••••••••••••••••••••••••••••••"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <p class="text-xs text-gray-600">Free API key at shodan.io — allows host lookups. Membership unlocks download and scanning credits.</p>
+      </div>
+    </div>
+
+    <!-- Have I Been Pwned -->
+    <div class="bg-gray-900 border rounded-xl p-4 transition-colors"
+         :class="cfg.hibp.enabled ? 'border-emerald-800' : 'border-gray-800'">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 text-lg">🔓</div>
+          <div>
+            <div class="text-sm font-semibold text-white">Have I Been Pwned</div>
+            <div class="text-xs text-gray-500">Check domain email addresses against known breach databases</div>
+          </div>
+        </div>
+        <button @click="toggle('hibp')" :class="cfg.hibp.enabled ? 'bg-emerald-600' : 'bg-gray-700'"
+                class="relative inline-flex h-5 w-9 items-center rounded-full transition-colors flex-shrink-0">
+          <span :class="cfg.hibp.enabled ? 'translate-x-4' : 'translate-x-1'"
+                class="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform shadow"></span>
+        </button>
+      </div>
+      <div x-show="cfg.hibp.enabled" x-collapse class="mt-4 space-y-3 pt-4 border-t border-gray-800">
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">API Key</label>
+          <input x-model="cfg.hibp.api_key" type="password" @change="dirty=true" placeholder="••••••••-••••-••••-••••-••••••••••••"
+                 class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white font-mono placeholder-gray-600 focus:outline-none focus:border-emerald-500"/>
+        </div>
+        <p class="text-xs text-gray-600">Requires a paid HIBP API key ($3.95/month). Purchase at haveibeenpwned.com/API/Key.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Active integrations summary -->
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-4">
+    <p class="text-xs text-gray-500 font-medium mb-2">Active integrations</p>
+    <div class="flex flex-wrap gap-2">
+      <template x-for="[k, v] in Object.entries(cfg)" :key="k">
+        <span x-show="v && v.enabled"
+              class="inline-flex items-center gap-1.5 px-2 py-1 bg-emerald-950 border border-emerald-800 rounded-full text-xs text-emerald-400 font-medium"
+              x-text="k"></span>
+      </template>
+      <span x-show="!Object.values(cfg).some(v => v && v.enabled)"
+            class="text-xs text-gray-600 italic">None enabled</span>
+    </div>
+  </div>
 
 </div>
 
 <script>
 function integrationsApp() {
-  const DEFAULT = {
-    slack:      { enabled: false, webhook: '', channel: '#security-alerts', min_severity: 'high' },
-    pagerduty:  { enabled: false, key: '' },
-    email:      { enabled: false, host: '', port: 587, from: '', to: '' },
-    jira:       { enabled: false, url: '', project: '', token: '', assignee: '' },
-    webhook:    { enabled: false, url: '', auth: '' },
+  const DEFAULTS = {
+    slack:      { enabled: false, webhook_url: '', min_severity: 'high' },
+    discord:    { enabled: false, webhook_url: '', min_severity: 'high' },
+    teams:      { enabled: false, webhook_url: '', min_severity: 'high' },
+    telegram:   { enabled: false, bot_token: '', chat_id: '', min_severity: 'high' },
+    ntfy:       { enabled: false, server: 'https://ntfy.sh', topic: '', token: '', min_severity: 'high' },
+    pagerduty:  { enabled: false, integration_key: '', min_severity: 'critical' },
+    email:      { enabled: false, smtp_host: '', smtp_port: 587, smtp_user: '', smtp_password: '', from_addr: '', to: '' },
+    jira:       { enabled: false, url: '', project: '', token: '', user_email: '' },
+    github:     { enabled: false, repo: '', token: '', label: 'security', min_severity: 'high' },
+    webhook:    { enabled: false, url: '', auth_header: '', min_severity: 'high' },
+    splunk:     { enabled: false, hec_url: '', hec_token: '', index: 'main', min_severity: 'high', verify_ssl: true },
+    elastic:    { enabled: false, url: '', index: 'viridis-findings', api_key: '' },
+    virustotal: { enabled: false, api_key: '' },
+    shodan:     { enabled: false, api_key: '' },
+    hibp:       { enabled: false, api_key: '' },
   };
-  const stored = (() => { try { return JSON.parse(localStorage.getItem('viridis_integrations') || 'null'); } catch { return null; } })();
+
+  function deepMerge(target, source) {
+    const out = Object.assign({}, target);
+    for (const k of Object.keys(source)) {
+      if (k in out && typeof out[k] === 'object' && typeof source[k] === 'object') {
+        out[k] = Object.assign({}, out[k], source[k]);
+      } else {
+        out[k] = source[k];
+      }
+    }
+    return out;
+  }
+
   return {
-    cfg: stored || JSON.parse(JSON.stringify(DEFAULT)),
+    cfg: JSON.parse(JSON.stringify(DEFAULTS)),
+    dirty: false,
+    saving: false,
     saved: false,
-    save() {
-      localStorage.setItem('viridis_integrations', JSON.stringify(this.cfg));
-      this.saved = true;
-      setTimeout(() => { this.saved = false; }, 2000);
+    saveError: '',
+
+    async init() {
+      try {
+        const r = await fetch('/api/integrations');
+        if (r.ok) {
+          const stored = await r.json();
+          this.cfg = deepMerge(DEFAULTS, stored);
+        }
+      } catch (e) { /* server might not be ready */ }
     },
-    testSlack() {
-      if (!this.cfg.slack.webhook) { alert('Enter a webhook URL first.'); return; }
-      alert('Test message would be sent to ' + (this.cfg.slack.channel || '#channel') + '.\n(Backend integration required for live sends.)');
+
+    toggle(key) {
+      this.cfg[key].enabled = !this.cfg[key].enabled;
+      this.dirty = true;
+    },
+
+    async save() {
+      this.saving = true;
+      this.saveError = '';
+      try {
+        const r = await fetch('/api/integrations', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.cfg),
+        });
+        if (r.ok) {
+          this.saved = true;
+          this.dirty = false;
+          setTimeout(() => { this.saved = false; }, 2500);
+        } else {
+          const d = await r.json().catch(() => ({}));
+          this.saveError = d.detail || 'Save failed';
+        }
+      } catch (e) {
+        this.saveError = 'Network error';
+      }
+      this.saving = false;
+    },
+
+    test(service) {
+      const url = this.cfg[service]?.webhook_url;
+      if (!url) { alert('Enter a webhook URL first.'); return; }
+      alert(`Test message would be sent to ${service}.\n(Backend integration required for live sends — save config first.)`);
     },
   };
 }
