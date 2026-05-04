@@ -562,7 +562,12 @@ def make_router(get_db_dep, config: Dict[str, Any], db_path: str, active_scans: 
     async def trigger_scan(request: Request, body: ScanIn, db=Depends(get_db_dep)):
         # Rate limiting: prevent DoS via excessive scan triggers
         from .. import check_scan_rate_limit
-        client_ip = request.client.host if request.client else "unknown"
+        _xff = request.headers.get("X-Forwarded-For", "")
+        _peer = request.client.host if request.client else ""
+        if _xff and _peer in ("127.0.0.1", "::1"):
+            client_ip = _xff.split(",")[0].strip()
+        else:
+            client_ip = _peer or "unknown"
         if not check_scan_rate_limit(client_ip):
             raise HTTPException(
                 status_code=429,

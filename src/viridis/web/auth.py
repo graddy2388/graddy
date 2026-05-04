@@ -95,7 +95,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
     _ANALYST_WRITE = (
         "/api/scans", "/api/targets", "/api/groups", "/api/tags",
         "/api/schedules", "/api/scope", "/api/profiles", "/api/hosts",
-        "/api/export",
+        "/api/export", "/api/integrations",
     )
 
     def __init__(self, app, db_path: str):
@@ -120,7 +120,9 @@ class SessionMiddleware(BaseHTTPMiddleware):
         role = user.get("role", ROLE_VIEWER)
 
         # Admin-only sections
-        if path.startswith("/api/users") or path == "/settings/users":
+        _admin_paths = (path.startswith("/api/users") or path.startswith("/api/integrations")
+                        or path == "/settings/users" or path == "/settings/integrations")
+        if _admin_paths:
             if role != ROLE_ADMIN:
                 if path.startswith("/api/"):
                     return JSONResponse({"detail": "Admin access required"}, status_code=403)

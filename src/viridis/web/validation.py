@@ -33,7 +33,8 @@ MAX_PORT_LIST_SIZE = 1024
 VALID_CHECKS: FrozenSet[str] = frozenset({
     "port_scan", "ssl", "http", "dns", "vuln", "smtp",
     "exposed_paths", "cipher", "nmap", "subnet_scan",
-    "masscan", "nuclei", "enum4linux", "sqlmap", "gobuster", "hydra", "headers",
+    "masscan", "nuclei", "enum4linux", "sqlmap", "gobuster", "hydra",
+    "headers", "auth", "smb", "software_inventory",
 })
 
 VALID_INTENSITIES: FrozenSet[str] = frozenset({
@@ -121,6 +122,10 @@ def validate_ports(ports: Optional[Iterable[int]]) -> Optional[List[int]]:
     return out
 
 
+_NMAP_DENIED_PREFIXES = (
+    "--script", "-il", "--interactive", "--resume", "--append-output",
+)
+
 def validate_nmap_args(s: str) -> str:
     """Parse and constrain nmap extra arguments (no shell; argv injection hardening)."""
     if not s:
@@ -135,6 +140,9 @@ def validate_nmap_args(s: str) -> str:
     for t in tokens:
         if not _NMAP_TOKEN_RE.match(t):
             raise ValueError(f"disallowed nmap argument token: {t!r}")
+        token_lower = t.lower().split("=")[0]
+        if any(token_lower.startswith(d) for d in _NMAP_DENIED_PREFIXES):
+            raise ValueError(f"nmap argument not permitted: {t!r}")
     return s
 
 

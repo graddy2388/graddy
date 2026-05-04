@@ -1,3 +1,4 @@
+import html as _html
 import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -81,11 +82,11 @@ def _build_html(
             for f in findings:
                 rows_html += (
                     f"<tr>"
-                    f"<td style='padding:6px 10px;border:1px solid #dee2e6;'>{target}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #dee2e6;'>{_html.escape(target)}</td>"
                     f"<td style='padding:6px 10px;border:1px solid #dee2e6;"
                     f"color:{color};font-weight:bold;'>{sev.upper()}</td>"
-                    f"<td style='padding:6px 10px;border:1px solid #dee2e6;'>{f.title}</td>"
-                    f"<td style='padding:6px 10px;border:1px solid #dee2e6;font-size:0.9em;'>{f.description}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #dee2e6;'>{_html.escape(f.title)}</td>"
+                    f"<td style='padding:6px 10px;border:1px solid #dee2e6;font-size:0.9em;'>{_html.escape(f.description)}</td>"
                     f"</tr>"
                 )
 

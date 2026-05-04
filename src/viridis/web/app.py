@@ -288,11 +288,23 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
             or req.url.scheme == "https"
         )
 
+    def _real_ip(req: Request) -> str:
+        """Return the real client IP, respecting X-Forwarded-For from a local proxy."""
+        xff = req.headers.get("X-Forwarded-For", "")
+        if xff:
+            candidate = xff.split(",")[0].strip()
+            # Only trust XFF when the direct peer is loopback (local proxy)
+            peer = req.client.host if req.client else ""
+            if peer in ("127.0.0.1", "::1"):
+                return candidate
+        return req.client.host if req.client else "unknown"
+
     @app.get("/login", response_class=HTMLResponse)
     async def login_page(request: Request, next: str = "/", error: str = ""):
         user = getattr(request.state, "user", None)
         if user:
-            return RedirectResponse(next or "/", status_code=302)
+            safe_next = next if (next.startswith("/") and not next.startswith("//")) else "/"
+            return RedirectResponse(safe_next, status_code=302)
         return _tr(templates, request, "login.html", {
             "error": error,
             "next": next if next != "/" else "",
@@ -305,7 +317,7 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         username  = str(form.get("username", "")).strip()
         password  = str(form.get("password", ""))
         next_url  = str(form.get("next", "/") or "/")
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _real_ip(request)
         secure    = _is_https(request)
 
         def _login_error(msg: str):
@@ -799,10 +811,57 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
     @app.put("/api/integrations")
     async def save_integrations(request: Request):
         from fastapi.responses import JSONResponse
+        import ipaddress as _ipaddress
+        import urllib.parse as _urlparse
         try:
             body = await request.json()
         except Exception:
             return JSONResponse({"detail": "Invalid JSON"}, status_code=400)
+
+        # Validate any URL fields to prevent SSRF via internal network access
+        _URL_KEYS = {"url", "hec_url", "server", "webhook_url"}
+        _PRIVATE_NETS = [
+            _ipaddress.ip_network(n) for n in (
+                "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16",
+                "127.0.0.0/8", "169.254.0.0/16", "::1/128", "fc00::/7",
+            )
+        ]
+
+        def _is_safe_url(val: str) -> bool:
+            if not isinstance(val, str):
+                return True
+            try:
+                p = _urlparse.urlparse(val)
+            except Exception:
+                return False
+            if p.scheme not in ("http", "https"):
+                return False
+            hostname = p.hostname or ""
+            try:
+                addr = _ipaddress.ip_address(hostname)
+                if any(addr in net for net in _PRIVATE_NETS):
+                    return False
+            except ValueError:
+                pass  # hostname — allow it; DNS-rebind is out of scope here
+            return True
+
+        def _check_urls(obj, path=""):
+            if isinstance(obj, dict):
+                for k, v in obj.items():
+                    if k in _URL_KEYS and isinstance(v, str) and v:
+                        if not _is_safe_url(v):
+                            raise ValueError(f"URL at '{path}.{k}' is not allowed (must be https:// to a public host)")
+                    else:
+                        _check_urls(v, f"{path}.{k}")
+            elif isinstance(obj, list):
+                for i, item in enumerate(obj):
+                    _check_urls(item, f"{path}[{i}]")
+
+        try:
+            _check_urls(body)
+        except ValueError as exc:
+            return JSONResponse({"detail": str(exc)}, status_code=422)
+
         with get_db(db_path) as _db:
             _db.execute(
                 "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
@@ -869,8 +928,9 @@ def create_app(config: Dict[str, Any]) -> FastAPI:
         except WebSocketDisconnect:
             pass
         except Exception as exc:
+            _log.exception("WebSocket scan error: %s", exc)
             try:
-                await websocket.send_json({"type": "error", "message": str(exc)})
+                await websocket.send_json({"type": "error", "message": "An internal error occurred"})
             except Exception:
                 pass
 
